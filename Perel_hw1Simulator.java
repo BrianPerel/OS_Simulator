@@ -9,7 +9,6 @@ import java.util.Scanner;
  * @author Brian Perel
  * @version 1.0
  *
- * Student ID: 300964362
  * HW# 1
  * Date 02/05/20
  *
