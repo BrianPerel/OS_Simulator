@@ -53,9 +53,12 @@ public class Perel_hw2Simulator {
 	static long OSFreeList = END_OF_LIST;
 	static long UserFreeList = END_OF_LIST;	
 	static long ProcessID = 1; 
+	static long OSMode = 1;
+	static long UserMode = 2;
 	static long systemShutdownStatus; // global shutdown status variable to check in main and exit system 
 	final static long DEFAULT_PRIORITY = 128;
 	final static long READY_STATE = 1; 
+	final static long TIMESLICE = 200; 
     
 	/* HYPO machine error codes, error codes are less than 0, check for errors at every step of OS execution */
 	final static long RUN_TIME_ERROR = -2;
@@ -68,8 +71,7 @@ public class Perel_hw2Simulator {
 	final static long ERROR_READED_HALT_INSTRUCTION = -9;
 	final static long ERROR_INVALID_MODE = -10;
 	final static long ERROR_INVALID_MEMORY_ADDRESS = -11;
-	final static long ERROR_INVALID_ID = -12; 
-	
+	final static long ERROR_INVALID_ID = -12; 	
 	
 	
 	static Scanner scan = new Scanner(System.in);
@@ -305,6 +307,8 @@ public class Perel_hw2Simulator {
 	 *   @return RunTimeError: return run time error code
 	 */
 	public static long CPU() {
+		long timeLeft = TIMESLICE; 
+		
 		final long HALT = 0;
 		returnFetchOps recieve; // create variable of class to hold 3 values at once (in object)
 		long remainder; // store value after performing remainder operation on IR register in OpCode
@@ -369,7 +373,9 @@ public class Perel_hw2Simulator {
 			// Execute cycle: fetch (read) operand values based on opcode
 			switch((int) Opcode) { // switch statement cannot evaluate variables of long type, needed to cast
 				case 0: { // halt instruction
-					System.out.println("halt");
+					System.out.println("halt instruction is encountered");
+					clock += 12;
+					timeLeft -= 12;
 					status = PROGRAM_HALTED;
 					return status;
 				}
@@ -690,6 +696,9 @@ public class Perel_hw2Simulator {
 					if(pc >= 0 && pc <= 3499) {}
 
 					else {}
+					
+					clock += 12;
+					timeLeft -= 12;
 
 					break;
 				}
@@ -700,7 +709,7 @@ public class Perel_hw2Simulator {
 				}
 			}
 
-		} while(Opcode != HALT); // loop until 0 received indicating halt operation
+		} while(Opcode != HALT && timeLeft > 0); // loop until 0 received indicating halt operation
 
 		return status;
 	}
@@ -1129,8 +1138,50 @@ public class Perel_hw2Simulator {
 	public static long searchAndRemovePCBfromWQ(long PID) {
 		return END_OF_LIST;
 	}
+	
+	
+	
+	/**
+	 * Method name: systemCall
+	 * 
+	 * @param systemCallID
+	 * @return
+	 */
 	public static long systemCall(long systemCallID) {
-		return 0;
+		
+		psr = OSMode;
+		long status = OK;
+		
+		switch((int) systemCallID) {
+		
+		// create process = user process is creating a child process 
+		case 1: System.out.println("Create process system call not implemented");
+				break; 
+				
+		// delete process 
+		case 2: System.out.println("Delete process system call not implemented");
+				break;
+				
+		// process inquiry 
+		case 3: System.out.println("Process inquery system call not implemented");
+				break; 
+						
+		// dynamic memory allocation: allocate user free memory system call 
+		case 4: status = memAllocSystemCall();
+				break; 
+				
+		// free dynamically allocated user memory system call 
+		case 5: status = memFreeSystemCall();
+				break;
+				
+		// invalid system call ID 		
+		default: System.out.println("Invalid system call ID error");
+				 break; 
+		}
+		
+		psr = UserMode;
+		
+		return status;
 	}
 	public static long memAllocSystemCall() {
 		return 0;

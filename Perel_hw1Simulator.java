@@ -698,13 +698,16 @@ public class Perel_hw1Simulator {
 			case 2: // register deferred mode -> Op address is in GPR and value in memory
 				OpAddress = gpr[(int) OpGPR];
 
-		/*		if(OpAddress >= 0 && OpAddress <= 3499) {
+
+			/*
+				if(OpAddress >= 0 && OpAddress <= 3499) {
 					OpValue = hypoMainMemory[(int) OpAddress];
 				}
 				else {
 					System.out.println("Invalid Address Error");
 					stat = ERROR_INVALID_ADDRESS;
-				}  */
+				}
+			*/
 				break;
 
 			case 3: // Auto-increment mode - Op address in GPR and Op vale in memory

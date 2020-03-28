@@ -1,5 +1,5 @@
 # OS_Simulator
-Program that simulates a real-time multitasking operating system for microcomputers. 
+Program that simulates a real-time multitasking operating system (MTOPS) for microcomputers. 
 Hardware: MAR, MBR, IR, SP, PC, GPR (8 general purpose registers for gpr), PSR registers. RAM, Clock, CPU. 
 I am simulating the hardware components by software.
 No GUI interface for OS. 
