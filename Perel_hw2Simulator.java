@@ -30,12 +30,12 @@ import java.util.Scanner;
  *  
  *  User programs to test the hardware and operating system are written in assembly language first and then hand assembled into machine language.
  *
- * HYPO machine program: 1. set all hardware to 0. 2. read executable machine language program from disk file (it is the converted assembly program),
- * 3. load from disk file into main memory (done by loader method, loader will stop loading after reading line with negative address),
- * 4. load the PC from the value returned by the absoluteLoader method,
- * 5. call CPU method to execute the program loaded into main memory,
- * 6. call dump memory method after loading the program and executing it,
- * Use main method to check all the method return values and take right action
+ *  HYPO machine program: 1. set all hardware to 0. 2. read executable machine language program from disk txt file (it is the converted assembly program),
+ *  3. load from disk file into main memory (done by loader method, loader will stop loading after reading line with negative address),
+ *  4. load the PC from the value returned by the absoluteLoader method,
+ *  5. call CPU method to execute the program loaded into main memory (execute the loaded instructions),
+ *  6. call dump memory method after loading the program and executing it (display the post-execution subset of memory data to console),
+ *  Use main method to check all the method return values and take right action
  */
 public class Perel_hw2Simulator {
 
@@ -55,6 +55,7 @@ public class Perel_hw2Simulator {
 	static long ProcessID = 1; 
 	static long OSMode = 1;
 	static long UserMode = 2;
+	static boolean shutdown = false; // flag used to indicate the HYPO Machine should shutdown
 	static long systemShutdownStatus; // global shutdown status variable to check in main and exit system 
 	final static long DEFAULT_PRIORITY = 128;
 	final static long READY_STATE = 1; 
@@ -72,9 +73,8 @@ public class Perel_hw2Simulator {
 	final static long ERROR_INVALID_MODE = -10;
 	final static long ERROR_INVALID_MEMORY_ADDRESS = -11;
 	final static long ERROR_INVALID_ID = -12; 	
-	
-	
-	static Scanner scan = new Scanner(System.in);
+
+	static Scanner scan = new Scanner(System.in); // console input object 
 
 
 	/**
@@ -82,13 +82,13 @@ public class Perel_hw2Simulator {
 	 *
 	 * Task Description:
 	 *   calls initializeSystem method,
-	 *   -reads name of exe file,
-	 *   -calls loader method to load exe program into main memory,
-	 *   -load pc from value returned by absoluteLoader method,
-	 *   -call executeProgram (CPU) method to execute program that was loaded
+	 *   (1) reads name of exe file,
+	 *   (2) calls loader method to load exe program into main memory,
+	 *   (3) load pc from value returned by absoluteLoader method,
+	 *   (4) call executeProgram (CPU) method to execute program that was loaded
 	 *   into main memory, calls dumpMemory method after loading program
 	 *   and executing loaded program
-	 *   -checks the method return value from each method and takes appropriate action
+	 *   (5) checks the method return value from each method and takes appropriate action
 	 *
 	 * Input Parameters:
 	 *   @param args: command line arguments
@@ -113,30 +113,42 @@ public class Perel_hw2Simulator {
 
 		initializeSystem(); // initialize all OS hardware, reset memory when OS starts
 
-		// read hypo machine language executable filename
-		System.out.print("Filename (add .txt to the end): "); // prompt
-		String filename = scan.nextLine(); // get file name
-
-		long returnValue = absoluteLoader(filename); // start load method
-
-		// check for return errors from loader
-		if(returnValue < 0) {
-			System.out.println("Error");
-		}
-		else {
-			pc = returnValue; // pc register gets load function return value
-			dumpMemory("Memory dump after loading program", 0, 99);
-			long ExecutionCompletionStatus = CPU(); // status variable holds the return status of the CPU. Execute hypo machine program by calling CPU method
-
-			dumpMemory("Memory dump after executing program", 0, 99);
-
-			// check to see if system executed successfully
-			if(ExecutionCompletionStatus >= 0)
-				System.out.println("OK");
+		// main loop of HYPO machine 
+		while(!shutdown) {
+			
+			long runningPCB = -1;
+			
+			checkAndProcessInterrupt(); // check and process interrupt 
+			
+			if(shutdown == true) break; // if interrupt is shutdown, terminate program
+			
+			dumpMemory("Dynamic memory area before CPU scheduling", 0, 99);
+			
+			dispatcher(runningPCB);
+			
+			// read HYPO machine language executable filename
+			System.out.print("Filename (add .txt to the end): "); // prompt
+			String filename = scan.nextLine(); // get file name
+	
+			long returnValue = absoluteLoader(filename); // start load method
+	
+			// check for return errors from loader
+			if(returnValue < 0) {
+				System.out.println("Error");
+			}
+			else {
+				pc = returnValue; // PC register gets load function return value
+				dumpMemory("Memory dump after loading program", 0, 99);
+				long ExecutionCompletionStatus = CPU(); // status variable holds the return status of the CPU. Execute hypo machine program by calling CPU method
+				dumpMemory("Memory dump after executing program", 0, 99);
+	
+				// check to see if system executed successfully
+				if(ExecutionCompletionStatus >= 0)
+					System.out.println("OK");
+			}
 		}
 		
 		System.out.println("OS is shutting down");
-		return;
 	}
 
 
@@ -321,7 +333,7 @@ public class Perel_hw2Simulator {
 		long Op2Mode; // mode of op2 (of current instruction)
 		long Op2GPR; // GPR register number of op2 (of current instruction)
 
-		long Op1Value;
+		long Op1Value = 0;
 		long Op1Address;
 		long Op2Value;
 		long Op2Address;
@@ -365,10 +377,13 @@ public class Perel_hw2Simulator {
 			if(Opcode < 0 || Opcode > 12)
 				return ERROR_INVALID_OPCODE_VALUE;
 
+			// check for invalid mode# 
 			if(Op1Mode >= 0 && Op1Mode <= 6 && Op2Mode >= 0 && Op2Mode <= 6)
 				return ERROR_INVALID_MODE;
 
-			/* add ERROR_INVALID_GPR_VALUE */
+			///check for invalid GPR#: error = !(0-7) 
+			if(Op1GPR < 0 && Op1GPR >= 8 && Op2GPR < 0 && Op2GPR >= 8) 
+				return ERROR_INVALID_GPR_VALUE;
 
 			// Execute cycle: fetch (read) operand values based on opcode
 			switch((int) Opcode) { // switch statement cannot evaluate variables of long type, needed to cast
@@ -693,10 +708,17 @@ public class Perel_hw2Simulator {
 				}
 
 				case 12: { // system call instruction
-					if(pc >= 0 && pc <= 3499) {}
-
-					else {}
 					
+					// check if pc value is in invalid range 
+					if(pc <= 0 && pc >= 3499) {
+						System.out.println(ERROR_INVALID_PC_VALUE);
+						return ERROR_INVALID_PC_VALUE;
+					}
+					
+					long systemCallID = hypoMainMemory[(int) pc++];
+					
+					status = systemCall(Op1Value);
+
 					clock += 12;
 					timeLeft -= 12;
 
@@ -747,16 +769,16 @@ public class Perel_hw2Simulator {
 			case 2: // register deferred mode -> Op address is in GPR and value in memory
 				OpAddress = gpr[(int) OpGPR];
 
-		/*		if(OpAddress >= 0 && OpAddress <= 3499) {
+				if(OpAddress >= 0 && OpAddress <= 3499) {
 					OpValue = hypoMainMemory[(int) OpAddress];
 				}
 				else {
 					System.out.println("Invalid Address Error");
 					stat = ERROR_INVALID_ADDRESS;
-				}  */
+				}  
 				break;
 
-			case 3: // Auto-increment mode - Op address in GPR and Op vale in memory
+			case 3: // Auto-increment mode - Op address in GPR and Op value in memory
 				OpAddress = gpr[(int) OpGPR];
 				if(OpAddress >= 0 && OpAddress <= 3499) {
 					OpValue = hypoMainMemory[(int) OpAddress];
@@ -848,7 +870,7 @@ public class Perel_hw2Simulator {
 		// Print GPR row title  
 		System.out.println("GPRs:\t G0\tG1\tG2\tG3\tG4\tG5\tG6\tG7\tSP\tPC");
 		
-		// Print GPR values.
+		// Print GPR values
 		for(int x = 0; x < gpr.length; x++) {
 			System.out.print("\t " + gpr[x]);
 		}
@@ -868,8 +890,7 @@ public class Perel_hw2Simulator {
 				if(addr < endAddress) {
 					System.out.print("\t " + hypoMainMemory[(int) addr++]);
 				}
-				else
-					break;
+				else break;
 			}
 		}
 
@@ -931,7 +952,7 @@ public class Perel_hw2Simulator {
 	 * @param PCBptr
 	 */
 	public static void initializePCB(long PCBptr) {
-		long PCB[] = new long[0]; // initialize PCB array (object) to 0 using PCBptr
+		long PCB[] = new long[4]; // initialize PCB array (object) to 0 using PCBptr
 		long PID = ProcessID++; // allocate PID and set it in the PCB 
 
 		// PID of value zero is invalid 
@@ -1055,7 +1076,7 @@ public class Perel_hw2Simulator {
 	 */
 	public static void saveContext(long PCBptr) {}
 	
-	public static void dispatcher() {
+	public static void dispatcher(long PCBptr) {
 	}
 	public static void terminateProcess() {
 	}
