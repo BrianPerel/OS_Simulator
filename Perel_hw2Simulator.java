@@ -50,6 +50,7 @@ public class Perel_hw2Simulator {
 
 	final static long END_OF_LIST = -1; 
 	static long RQ = END_OF_LIST; // ready queue
+	static long WQ = END_OF_LIST; // waiting queue 
 	static long OSFreeList = END_OF_LIST;
 	static long UserFreeList = END_OF_LIST;	
 	static long ProcessID = 1; 
@@ -60,6 +61,7 @@ public class Perel_hw2Simulator {
 	final static long DEFAULT_PRIORITY = 128;
 	final static long READY_STATE = 1; 
 	final static long TIMESLICE = 200; 
+	final static long MAX_MEMORY_ADDRESS = 3499; // the highest memory address you can use  
     
 	/* HYPO machine error codes, error codes are less than 0, check for errors at every step of OS execution */
 	final static long RUN_TIME_ERROR = -2;
@@ -73,6 +75,8 @@ public class Perel_hw2Simulator {
 	final static long ERROR_INVALID_MODE = -10;
 	final static long ERROR_INVALID_MEMORY_ADDRESS = -11;
 	final static long ERROR_INVALID_ID = -12; 	
+	final static long ERROR_NO_FREE_MEMORY = -13;
+	final static long ERROR_INVALID_MEMORY_SIZE = -14;
 
 	static Scanner scan = new Scanner(System.in); // console input object 
 
@@ -935,7 +939,7 @@ public class Perel_hw2Simulator {
 		// check for error
 		if(ptr < 0) {
 			// User memory allocation failed 
-			freeOSMemory();
+			freeOSMemory(ptr, value);
 		}
 		
 		dumpMemory("Memory dump after creating process", 0, 99);
@@ -1001,6 +1005,7 @@ public class Perel_hw2Simulator {
 			System.out.println("PCB passing current PCB pointer");
 			currentPCBptr = currentPCBptr++;
 		}
+		
 		return OK;
 	}
 	
@@ -1019,12 +1024,11 @@ public class Perel_hw2Simulator {
 	 * @return
 	 */
 	public long insertIntoRQ(long PCBptr) {
-		long maxMemoryAddress = 3499; // check this value -> this is the highest memory address you can use  
 		long previousPtr = END_OF_LIST;
 		long currentPtr = RQ; 
 		
 		// check for valid PCB memory address
-		if(PCBptr < 0 || PCBptr > maxMemoryAddress) {
+		if(PCBptr < 0 || PCBptr > MAX_MEMORY_ADDRESS) {
 			System.out.println(ERROR_INVALID_ADDRESS);
 			return ERROR_INVALID_MEMORY_ADDRESS;
 		}
@@ -1039,7 +1043,7 @@ public class Perel_hw2Simulator {
 		
 		// Walk through RQ and find the place to insert. PCB will be inserted at the end of its priority
 		while(currentPtr != END_OF_LIST) {
-
+				
 		}
 		
 		return OK;
@@ -1048,6 +1052,14 @@ public class Perel_hw2Simulator {
 	
 	
 	public static long insertIntoWQ(long PCBptr) {
+
+		if(PCBptr < 0 || PCBptr > MAX_MEMORY_ADDRESS) {
+			System.out.println(ERROR_INVALID_MEMORY_ADDRESS);
+			return ERROR_INVALID_MEMORY_ADDRESS;
+		}
+		
+		WQ = PCBptr;
+		
 		return OK;
 	}
 	
@@ -1074,16 +1086,98 @@ public class Perel_hw2Simulator {
 	 * 
 	 * @param PCBptr
 	 */
-	public static void saveContext(long PCBptr) {}
-	
+	public static void saveContext(long PCBptr) {
+	}
 	public static void dispatcher(long PCBptr) {
 	}
 	public static void terminateProcess() {
 	}
 	public static long allocateOSMemory(long RequestedSize) {
-		return 0;
+		// Allocate memory from OS free space organized as a link 
+		
+		// ensure OS free memory exists 
+		if(OSFreeList == END_OF_LIST) {
+			System.out.println(ERROR_NO_FREE_MEMORY);
+			return ERROR_NO_FREE_MEMORY;
+		}
+		
+		if(RequestedSize < 0) {
+			System.out.println(ERROR_INVALID_MEMORY_SIZE);
+			return ERROR_INVALID_MEMORY_SIZE;
+		}
+		
+		if(RequestedSize == 1) {
+			// minimum allocated memory is 2 locations 
+			RequestedSize = 2;
+		}
+		
+		long currentPtr = OSFreeList;
+		long previousPtr = END_OF_LIST;
+		
+		while(currentPtr != END_OF_LIST) {
+			// check each block in the linked list until block with requested memory size is found
+			if(hypoMainMemory[(int) (currentPtr + 1)] == RequestedSize) {
+				// if block found with requested size, adjust pointers
+				if(currentPtr == OSFreeList) {
+				OSFreeList = hypoMainMemory[(int) currentPtr];
+				hypoMainMemory[(int) currentPtr] = END_OF_LIST;
+				return currentPtr; // return memory address 
+				}
+				// not first block
+				else {
+					hypoMainMemory[(int) previousPtr] = hypoMainMemory[(int) currentPtr]; // point to next block
+					hypoMainMemory[(int) currentPtr] = END_OF_LIST; // reset next pointer in the allocated block 
+					return currentPtr; // return memory address 
+				}
+			}
+			
+			// if block found with size greater than requested size 
+			else if(hypoMainMemory[(int) currentPtr + 1] > RequestedSize) {
+				// first block 
+				if(currentPtr == OSFreeList) {
+					hypoMainMemory[(int) (currentPtr + RequestedSize)] = hypoMainMemory[(int) currentPtr]; // move to next block pointer
+					hypoMainMemory[(int) (currentPtr + RequestedSize + 1)] = hypoMainMemory[(int) currentPtr + 1] - RequestedSize;
+					OSFreeList = currentPtr + RequestedSize; // address of reduced block
+					hypoMainMemory[(int) currentPtr] = END_OF_LIST; // reset next pointer in the allocated block 
+					return currentPtr;
+				}
+				// not first block 
+				else { 
+					hypoMainMemory[(int) (currentPtr + RequestedSize)] = hypoMainMemory[(int) currentPtr]; // move to next block pointer 
+					hypoMainMemory[(int) (currentPtr + RequestedSize + 1)] = hypoMainMemory[(int) currentPtr + 1] - RequestedSize;
+					hypoMainMemory[(int) previousPtr] = currentPtr + RequestedSize; // address of reduced block 
+					hypoMainMemory[(int) currentPtr] = END_OF_LIST; // reset next pointer in the allocated block 
+					return currentPtr; // return memory address 
+				}
+			}
+			
+			// small block 
+			else {
+				// look at the next block 
+				previousPtr = currentPtr;
+				currentPtr = hypoMainMemory[(int) currentPtr];
+			}
+		}
+		
+		System.out.println(ERROR_NO_FREE_MEMORY); 
+		return ERROR_NO_FREE_MEMORY;		
 	}
-	public static long freeOSMemory() {
+	public static long freeOSMemory(long ptr, long size) {
+		
+		/* if(ptr > ) {
+		 		System.out.println(ERROR_INVALID_MEMORY_ADDRESS);
+		 		return ERROR_INVALID_MEMORY_ADDRESS; 
+		   } */
+		
+		// check for minimum allocated size, which is 2 even if user asks for 1 location 
+		if(size == 1) { 
+			size = 2; // minimum allocated size 
+		}
+		
+		else if(size < 1 || (ptr + size) >= MAX_MEMORY_ADDRESS) {
+			
+		}
+		
 		return OK;
 	}
 	public static long allocateUserMemory() {
@@ -1104,10 +1198,14 @@ public class Perel_hw2Simulator {
 	public static void checkAndProcessInterrupt() throws IOException {
 				
 		// prompt possible interrupts selection menu 
-		System.out.println("Possible Interrupts: \n\t0 - no interrupt"
-				+ "\n\t1 - run program\n\t2 - shutdwon system\n\t"
-				+ "3 - input operation completion(io_getc)\n\t"
-				+ "4 - output operation completion(io_putc)\n");
+		System.out.println("\n***********************************************"
+							+ "\nPossible Interrupts: \n\t0 - no interrupt"
+							+ "\n\t1 - run program\n\t2 - shutdwon system\n\t"
+							+ "3 - input operation completion(io_getc)\n\t"
+							+ "4 - output operation completion(io_putc)\n"
+							+ "\n***********************************************");
+		System.out.print("Please choose an interrupt number: ");
+
 		
 		// read interrupt ID 
 		int interruptID = scan.nextInt();
