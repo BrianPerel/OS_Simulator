@@ -3,8 +3,8 @@ import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileReader;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Scanner;
-
 /**
  * @author Brian Perel
  * @version 1.0
@@ -57,6 +57,7 @@ public class Perel_hw2Simulator {
 	static long UserMode = 2;
 	static boolean shutdown = false; // flag used to indicate the HYPO Machine should shutdown
 	static long systemShutdownStatus; // global shutdown status variable to check in main and exit system
+	static long ThisPCB; 
 	final static long DEFAULT_PRIORITY = 128;
 	final static long READY_STATE = 1;
 	final static long TIMESLICE = 200;
@@ -79,7 +80,7 @@ public class Perel_hw2Simulator {
 	final static long ERROR_INVALID_SIZE_OR_MEMORY_ADDRESS = -15;
 
 	static Scanner scan = new Scanner(System.in); // console input object
-
+    static ArrayList<PCB> PCBs = new ArrayList<PCB>(); // declare array list with PCB class as the type, needed to store the PCBs. For every process we have a different PCB, so use array list to store them dynamically  
 
 	/**
 	 * Method name: main
@@ -907,7 +908,7 @@ public class Perel_hw2Simulator {
 	/**
 	 * Method name: create process
 	 *
-	 * Task Description:
+	 * Task Description: Method creates the process for the program and prepares the PCB block (object)
 	 *
 	 * Input Parameters:
 	 *  filename, priority
@@ -916,28 +917,27 @@ public class Perel_hw2Simulator {
 	 *  None
 	 *
 	 * Function return values:
-	 * @param filename
-	 * @param priority
-	 * @return
+	 * @param filename: program used by the absolute loader 
+	 * @param priority: indicates which process should be handled first 
+	 * @return OK: returns successful execution code 
 	 * @throws IOException
 	 */
 	public static long createProcess(String filename, long priority) throws IOException {
-		PCB thisPCB = new PCB(); // allocate OS memory for PCB (create an instance)
-
 		// Allocate space for Process Control Block
 		long PCBptr = allocateOSMemory(1); // change argument later, 0 gives error, 1 works
 
+		ThisPCB = initializePCB(PCBptr); // call initialize PCB ptr and set it to a variable (so we know which PCB we're working with)
+		
 		// check for error and return error code if memory allocation failed
 		if(PCBptr == ERROR_INVALID_MEMORY_SIZE) return ERROR_INVALID_MEMORY_SIZE;
-		initializePCB(PCBptr);
 
 		// load the program
 		long value = absoluteLoader(filename);
 		if(value == ERROR_FILE_OPEN) return ERROR_FILE_OPEN; // check for program loading error
-		thisPCB.setPC(value);  // store PC value in the PCB of the process
+		PCBs.get((int) ThisPCB).setPC(value);  // store PC value in the PCB of the process
 
-		// Allocate stack space from user free list
-		long ptr = allocateOSMemory(1);
+		// Allocate stack space from user free list, allocate user memory of size stack size 
+		long ptr = allocateOSMemory(PCBs.get((int) ThisPCB).getStackSize());
 
 		// check for error
 		if(ptr < 0) {
@@ -946,12 +946,15 @@ public class Perel_hw2Simulator {
 			return ptr;
 		}
 
+		long stackSize = PCBs.get((int) ThisPCB).getStackSize();
+		
 		// set SP in the PCB = ptr + stack size
-		thisPCB.setSP(ptr + thisPCB.getStackSize());
-		thisPCB.setStackStartAddress(ptr);
+		PCBs.get((int) ThisPCB).setSP(ptr + PCBs.get((int) ThisPCB).getStackSize());
+		PCBs.get((int) ThisPCB).setStackStartAddress(ptr);
+		PCBs.get((int) ThisPCB).setStackSize(stackSize);
 
 		// set priority in the PCB to priority
-		thisPCB.setPriority(DEFAULT_PRIORITY);
+		PCBs.get((int) ThisPCB).setPriority(DEFAULT_PRIORITY);
 
 		dumpMemory("Memory dump after creating process", 0, 99);
 
@@ -969,14 +972,14 @@ public class Perel_hw2Simulator {
 	 *
 	 * Description: PCB (Process Control Block) is related to process - anything that calls create process will deal with PCB such as initializeSystem function
 	 * make PCB an object (constructor). Method is used to initialize a new PCB node. The new PCB will start at the specified address and have the specified PID.
-	 * It's pirority will be set to the default priority of 128 and all other values are initialized to value of 0.
+	 * It's priority will be set to the default priority of 128 and all other values are initialized to value of 0.
 	 *
-	 * @param PCBptr
+	 * @param PCBptr: The pointer of the PCB block used to identify it in memory and in queues
 	 */
-	public static void initializePCB(long PCBptr) {
-		PCB thisPCB = new PCB(); // allocate OS memory for PCB (create an instance)
-
-		// set entire PCB area to 0 using PCBptr
+	public static long initializePCB(long PCBptr) {
+		long[] PCB_GPR = new long[8]; // declare PCB GPR array, by default an arrays values are all set to 0 
+		
+		PCB thisPCB = new PCB(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, PCB_GPR, 0, 0, 0); // allocate OS memory for PCB (create an instance)
 
 		// PID of value zero is invalid, since process id's value is going into pid method we check process id value
 		if(ProcessID == 0) {
@@ -987,6 +990,11 @@ public class Perel_hw2Simulator {
 		thisPCB.setPriority(DEFAULT_PRIORITY); // set priority field in the PCB to default priority
 		thisPCB.setState(READY_STATE); // set state field in the PCB equal to ready state
 		thisPCB.setNextPCBPointer(END_OF_LIST); // set next PCB pointer field (next pointer in the list)  in the PCB to end of list
+
+		PCBs.add(thisPCB); // add current PCB to PCBs list (array list) for later use in methods 
+		
+		long PCBIndex = PCBs.indexOf(thisPCB); // create variable that will hold the index value of current PCB 
+		return PCBIndex; // return PCBIndex to createProcess() when it calls initializePCB at beginning of method, assign this value to ThisPCB variable 
 	}
 
 
@@ -999,21 +1007,20 @@ public class Perel_hw2Simulator {
 	 * @param PCBptr
 	 */
 	public static void printPCB(long PCBptr) {
-		PCB thisPCB = new PCB();
 
-		System.out.println("PCB address = " + thisPCB.getPCBptr() +
-				"\nNext PCB ptr = " + thisPCB.getNextPCBPointer() +
-				"\nPID = " + thisPCB.getPID() +
-				"\nState = " + thisPCB.getState() +
-				"\nPC = " + thisPCB.getPC() +
-				"\nSP = " + thisPCB.getSP() +
-				"\nPriority = " + thisPCB.getPriority() +
-				"\nStack info: start address = " + thisPCB.getStackStartAddress() +
-				" , size = " + thisPCB.getStackSize());
+		System.out.println("PCB address = " + PCBs.get((int) ThisPCB).getPCBptr() +
+				"\nNext PCB ptr = " + PCBs.get((int) ThisPCB).getNextPCBPointer() +
+				"\nPID = " + PCBs.get((int) ThisPCB).getPID() +
+				"\nState = " + PCBs.get((int) ThisPCB).getState() +
+				"\nPC = " + PCBs.get((int) ThisPCB).getPC() +
+				"\nSP = " + PCBs.get((int) ThisPCB).getSP() +
+				"\nPriority = " + PCBs.get((int) ThisPCB).getPriority() +
+				"\nStack info: start address = " + PCBs.get((int) ThisPCB).getStackStartAddress() +
+				" , size = " + PCBs.get((int) ThisPCB).getStackSize());
 
 				// print 8 GPR values: GPRs = print 8 values of GPR 0 to GPR 7
 				System.out.println("GPRs = ");
-				long[] gprArr = thisPCB.getGPR();
+				long[] gprArr = PCBs.get((int) ThisPCB).getGPR();
 				for(int x = 0; x < 8; x++)
 					System.out.print(gprArr[x] + " ");
 	}
@@ -1057,11 +1064,9 @@ public class Perel_hw2Simulator {
 	 * The scheduling algorithm is implemented at the time of inserting the ready PCB into the RQ.
 	 *
 	 * @param PCBptr
-	 * @return
+	 * @return OK 
 	 */
 	public static long insertIntoRQ(long PCBptr) {
-		PCB thisPCB = new PCB(); // allocate OS memory for PCB (create an instance)
-
 		long previousPtr = END_OF_LIST;
 		long currentPtr = RQ;
 
@@ -1071,7 +1076,12 @@ public class Perel_hw2Simulator {
 			return ERROR_INVALID_MEMORY_ADDRESS;
 		}
 
-		//	 hypoMainMemory[(int) (PCBptr + thisPCB.setStateIndex(READY_STATE))]; // set state to ready state
+		// below 3 lines set state to ready state 
+		PCBs.get((int) ThisPCB).setState(1);
+		long stateIndex = PCBs.get((int) ThisPCB).getState();
+		
+		hypoMainMemory[(int) (PCBptr + stateIndex)] = READY_STATE; // set state to ready state
+		hypoMainMemory[()]
 
 		// if RQ is empty
 		if(RQ == END_OF_LIST) {
@@ -1481,7 +1491,7 @@ public class Perel_hw2Simulator {
  * */
 class PCB {
 
-	public long PCBptr; // PCB start address
+	public long PCBptr; // PCB start address (will be used as arg in many methods) 
 	public long nextPCBPointer;
 	public long PID;
 	public long state;
@@ -1496,6 +1506,27 @@ class PCB {
 	public long SP;
 	public long PC;
 	public long PSR;
+	
+	public PCB(long PCBptr, long nextPCBPointer, long PID, long state, long reasonForWaitingCode, long priority, long stackStartAddress, long stackSize, long messageQueueStartAddress, long messageQueueSize, long numOfMessagesInQueue, long[] GPR, long SP, long PC, long PSR) {
+		this.PCBptr = PCBptr;
+		this.nextPCBPointer = nextPCBPointer;
+		this.PID = PID;
+		this.state = state;
+		this.reasonForWaitingCode = reasonForWaitingCode;
+		this.priority = priority;
+		this.stackStartAddress = stackStartAddress;
+		this.stackSize = stackSize;
+		this.messageQueueStartAddress = messageQueueStartAddress;
+		this.messageQueueSize = messageQueueSize;
+		this.numOfMessagesInQueue = numOfMessagesInQueue;
+		
+		for(int x = 0; x < GPR.length; x++)
+			this.GPR[x] = GPR[x];
+		
+		this.SP = SP;
+		this.PC = PC;
+		this.PSR = PSR;
+	}
 
 	public long getPCBptr() {
 		return PCBptr;
@@ -1564,10 +1595,9 @@ class PCB {
 	public void setNumOfMessagesInQueue(long numOfMessagesInQueue) {
 		this.numOfMessagesInQueue = numOfMessagesInQueue;
 	}
-	public void setGPR(long[] GPRPassedIn) {
-		for(int i = 0; i < GPR.length; i++) {
-			GPR[i] = GPRPassedIn[i];
-		}
+	public void setGPR(long[] GPR, long GPRIndex) {
+		    // set individual array index address, passing in array (containing values) and index address 
+			this.GPR[(int)GPRIndex] = GPR[(int)GPRIndex];
 	}
 	public void setPSR(long PSR) {
 		this.PSR = PSR;
