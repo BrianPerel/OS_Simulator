@@ -9,7 +9,6 @@ import java.util.Scanner;
  * @author Brian Perel
  * @version 1.0
  *
- * Student ID: 300964362
  * HW# 2
  * Date 02/05/20
  *
@@ -926,7 +925,7 @@ public class Perel_hw2Simulator {
 		PCB thisPCB = new PCB(); // allocate OS memory for PCB (create an instance)
 
 		// Allocate space for Process Control Block
-		long PCBptr = allocateOSMemory(1); // change argument later, 0 gives error, 1 works 
+		long PCBptr = allocateOSMemory(1); // change argument later, 0 gives error, 1 works
 
 		// check for error and return error code if memory allocation failed
 		if(PCBptr == ERROR_INVALID_MEMORY_SIZE) return ERROR_INVALID_MEMORY_SIZE;
@@ -967,25 +966,25 @@ public class Perel_hw2Simulator {
 
 	/**
 	 * Method Name: initializePCB
-	 * 
+	 *
 	 * Description: PCB (Process Control Block) is related to process - anything that calls create process will deal with PCB such as initializeSystem function
 	 * make PCB an object (constructor). Method is used to initialize a new PCB node. The new PCB will start at the specified address and have the specified PID.
-	 * It's pirority will be set to the default priority of 128 and all other values are initialized to value of 0. 
+	 * It's pirority will be set to the default priority of 128 and all other values are initialized to value of 0.
 	 *
 	 * @param PCBptr
 	 */
 	public static void initializePCB(long PCBptr) {
 		PCB thisPCB = new PCB(); // allocate OS memory for PCB (create an instance)
 
-		// set entire PCB area to 0 using PCBptr 
-		
-		// PID of value zero is invalid, since process id's value is going into pid method we check process id value 
+		// set entire PCB area to 0 using PCBptr
+
+		// PID of value zero is invalid, since process id's value is going into pid method we check process id value
 		if(ProcessID == 0) {
 			System.out.println(ERROR_INVALID_ADDRESS);
 		}
 		thisPCB.setPID(ProcessID++); // allocate PID and set it in the PCB
 
-		thisPCB.setPriority(DEFAULT_PRIORITY); // set priority field in the PCB to default priority 
+		thisPCB.setPriority(DEFAULT_PRIORITY); // set priority field in the PCB to default priority
 		thisPCB.setState(READY_STATE); // set state field in the PCB equal to ready state
 		thisPCB.setNextPCBPointer(END_OF_LIST); // set next PCB pointer field (next pointer in the list)  in the PCB to end of list
 	}
@@ -993,15 +992,15 @@ public class Perel_hw2Simulator {
 
 
 	/**
-	 * Method Name: printPCB 
-	 * 
-	 * Print values of all the fields in the PCB 
+	 * Method Name: printPCB
+	 *
+	 * Print values of all the fields in the PCB
 	 *
 	 * @param PCBptr
 	 */
 	public static void printPCB(long PCBptr) {
-		PCB thisPCB = new PCB(); 
-		
+		PCB thisPCB = new PCB();
+
 		System.out.println("PCB address = " + thisPCB.getPCBptr() +
 				"\nNext PCB ptr = " + thisPCB.getNextPCBPointer() +
 				"\nPID = " + thisPCB.getPID() +
@@ -1011,11 +1010,11 @@ public class Perel_hw2Simulator {
 				"\nPriority = " + thisPCB.getPriority() +
 				"\nStack info: start address = " + thisPCB.getStackStartAddress() +
 				" , size = " + thisPCB.getStackSize());
-		
-				// print 8 GPR values: GPRs = print 8 values of GPR 0 to GPR 7 
+
+				// print 8 GPR values: GPRs = print 8 values of GPR 0 to GPR 7
 				System.out.println("GPRs = ");
 				long[] gprArr = thisPCB.getGPR();
-				for(int x = 0; x < 8; x++) 
+				for(int x = 0; x < 8; x++)
 					System.out.print(gprArr[x] + " ");
 	}
 
@@ -1121,8 +1120,8 @@ public class Perel_hw2Simulator {
 	 * Description: Save CPU context into running process PCB.
 	 * Running process is going to lose the CPU. Hence, its CPU context has to be
 	 * saved in its PCB so that it can be restored when it gets the CPU at a later time.
-	 * CPU context consists of GPRs, SP, PC, and PSR. 
-	 * Method used to store the specified value into the PCB who's start address is startAddress at this index's address. 
+	 * CPU context consists of GPRs, SP, PC, and PSR.
+	 * Method used to store the specified value into the PCB who's start address is startAddress at this index's address.
 	 *
 	 * @param PCBptr
 	 */
@@ -1472,18 +1471,18 @@ public class Perel_hw2Simulator {
 
 
 
-/** 
- * Class Name: PCB 
- * 
- * Description: Class to contain all information on PCB. 
- * Class represents a process' program control block (PCB). 
- * PCB is located in hypo machine's OS dynamic memory area.  
- * 
+/**
+ * Class Name: PCB
+ *
+ * Description: Class to contain all information on PCB.
+ * Class represents a process' program control block (PCB).
+ * PCB is located in hypo machine's OS dynamic memory area.
+ *
  * */
 class PCB {
 
 	public long PCBptr; // PCB start address
-	public long nextPCBPointer; 
+	public long nextPCBPointer;
 	public long PID;
 	public long state;
 	public long reasonForWaitingCode;
@@ -1531,7 +1530,7 @@ class PCB {
 	public long getStackStartAddress() {
 		return stackStartAddress;
 	}
-	
+
 	public void setPC(long PC) {
 		this.PC = PC;
 	}
