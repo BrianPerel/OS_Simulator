@@ -12,7 +12,7 @@ import java.util.Scanner;
  * HW# 2
  * Date 02/05/20
  *
- * Hypo Project for OSI course CSCI 465
+ * HYPO Project for OSI course CSCI 465
  *
  * Purpose:
  *	This program will simulate a hypothetical decimal machine
@@ -60,6 +60,8 @@ public class Perel_hw2Simulator {
 	static long ThisPCB; 
 	final static long DEFAULT_PRIORITY = 128;
 	final static long READY_STATE = 1;
+	final static long WAITING_STATE = 2; 
+	final static long RUNNING_STATE = 3;
 	final static long TIMESLICE = 200;
 	final static long MAX_MEMORY_ADDRESS = 3499; // the highest memory address you can use
 
@@ -238,7 +240,7 @@ public class Perel_hw2Simulator {
 			File fileObj = new File(file); // create file object
 			BufferedReader br = new BufferedReader(new FileReader(fileObj)); // create bufferedReader object to read from file
 
-			// load the program from given filename into hypo main memory
+			// load the program from given filename into HYPO main memory
 			try {
 
 				// if user enters blank (hits enter) for input, print error
@@ -1081,7 +1083,8 @@ public class Perel_hw2Simulator {
 		long stateIndex = PCBs.get((int) ThisPCB).getState();
 		
 		hypoMainMemory[(int) (PCBptr + stateIndex)] = READY_STATE; // set state to ready state
-		hypoMainMemory[()]
+		long nextPCBPointerIndex = PCBs.get((int) ThisPCB).getNextPCBPointer();
+		hypoMainMemory[(int) (PCBptr + nextPCBPointerIndex)] = END_OF_LIST; // set next pointer to end of list 
 
 		// if RQ is empty
 		if(RQ == END_OF_LIST) {
@@ -1091,20 +1094,47 @@ public class Perel_hw2Simulator {
 
 		// Walk through RQ and find the place to insert. PCB will be inserted at the end of its priority
 		while(currentPtr != END_OF_LIST) {
-
+			if(hypoMainMemory[(int) (PCBptr + PCBs.get((int) ThisPCB).getPriority())] >
+					hypoMainMemory[(int) (currentPtr +  PCBs.get((int) ThisPCB).getPriority())]) {
+				if(previousPtr == END_OF_LIST) {
+					// enter PCB in the front of the list as first entry 
+					hypoMainMemory[(int) (PCBptr + nextPCBPointerIndex)] = RQ;
+					RQ = PCBptr;
+					return OK;
+				}
+			
+				// enter PCB in the middle of the list 
+				hypoMainMemory[(int) (PCBptr + nextPCBPointerIndex)] = hypoMainMemory[(int) (previousPtr + nextPCBPointerIndex)];
+				hypoMainMemory[(int) (previousPtr + nextPCBPointerIndex)] = PCBptr;
+				return OK; 
+			}
+			else {  // PCB to be inserted has lower or equal priority to the current PCB in RQ
+				// go the the next PCB in RQ 
+				previousPtr = currentPtr;
+				currentPtr = hypoMainMemory[(int) (currentPtr + nextPCBPointerIndex)];
+			}
 		}
-
+		
+		// insert PCB at the end of the RQ 
+		hypoMainMemory[(int) (previousPtr + nextPCBPointerIndex)] = PCBptr; 
 		return OK;
 	}
 
 
 
 	public static long insertIntoWQ(long PCBptr) {
+		// insert the given PCB at the front of WQ 
 
 		if(PCBptr < 0 || PCBptr > MAX_MEMORY_ADDRESS) {
 			System.out.println(ERROR_INVALID_MEMORY_ADDRESS);
 			return ERROR_INVALID_MEMORY_ADDRESS;
 		}
+		
+		long stateIndex = PCBs.get((int) ThisPCB).getState();
+		hypoMainMemory[(int) (PCBptr + stateIndex)] = WAITING_STATE; // set state to ready state 
+		
+		long nextPCBPointerIndex = PCBs.get((int) ThisPCB).getNextPCBPointer();
+		hypoMainMemory[(int) (PCBptr + nextPCBPointerIndex)] = WQ; // set next pointer to end of list 
 
 		WQ = PCBptr;
 
@@ -1112,12 +1142,27 @@ public class Perel_hw2Simulator {
 	}
 
 
-
+	
+	/**
+	 * Method Name: selectProcessFromRQ 
+	 * 
+	 * Description: Select first process from RQ to give CPU. 
+	 * When CPU has to be allocated to the next process in RQ, select the first process 
+	 * in the RQ and return the pointer to the PCB since processes in RQ are already ordered from highest to lowest priority
+	 * 
+	 * @return
+	 */
 	public static long selectProcessFromRQ() {
 		long PCBptr = RQ; // first entry in RQ
+		PCBs.get((int) ThisPCB).setPCBptr(PCBptr); // update the PCBptr field in the class too with above value 
+		
 		if(RQ != END_OF_LIST) {
 			// remove first PCB from RQ
+			RQ = PCBs.get((int) ThisPCB).getNextPCBPointer(); // set RQ = next PCB pointed by RQ
 		}
+		
+		// set next point to EOL in the PCB; set next PCB field in the given PCB to END_OF_LIST
+		PCBs.get((int) ThisPCB).setNextPCBPointer(END_OF_LIST);
 
 		return PCBptr;
 	}
@@ -1136,6 +1181,7 @@ public class Perel_hw2Simulator {
 	 * @param PCBptr
 	 */
 	public static void saveContext(long PCBptr) {
+		// assume PCBptr is a valid pointer: perform PCBptr value validation
 	}
 	public static void dispatcher(long PCBptr) {
 		psr = UserMode; // user mode is 2, set system mode to user mode
@@ -1374,20 +1420,27 @@ public class Perel_hw2Simulator {
 		   return the PCB pointer */
 
 		while(currentPCBptr != END_OF_LIST) {
-		/*	if(hypoMainMemory[(int) (PCBptr + pidIndex)] == PID) {
-				// first PCB
-				WQ = hypoMainMemory[(int) (currentPCBptr + nextPCBIndex)];
-			}
-			else {
-				// not first PCB
-				hypoMainMemory[(int) (previousPCBptr + nextPCBIndex)] = hypoMainMemory[(int) (previousPCBptr + nextPCBIndex)];
-			}
+			if(hypoMainMemory[(int) ((PCBs.get((int) ThisPCB).getPCBptr()) + PCBs.get((int) ThisPCB).getPID())] == PID) {
+				
+				if(previousPCBptr == END_OF_LIST) { // match found, remove from WQ 
+					// first PCB
+					WQ = hypoMainMemory[(int) (currentPCBptr + PCBs.get((int) ThisPCB).getNextPCBPointer())];
+				}
+			
+				else {
+					// not first PCB
+					hypoMainMemory[(int) (previousPCBptr +  PCBs.get((int) ThisPCB).getNextPCBPointer())] = 
+							hypoMainMemory[(int) (previousPCBptr + PCBs.get((int) ThisPCB).getNextPCBPointer())];
+				}
 
-			hypoMainMemory[(int) (currentPCBptr + nextPCBIndex)] = END_OF_LIST; */
-			return currentPCBptr;
+				hypoMainMemory[(int) (currentPCBptr + PCBs.get((int) ThisPCB).getNextPCBPointer())] = END_OF_LIST; 
+				return currentPCBptr;
+			}
+			previousPCBptr = currentPCBptr;
+			currentPCBptr = hypoMainMemory[(int) (currentPCBptr + PCBs.get((int) ThisPCB).getNextPCBPointer())];
 		}
 
-		// No matchine PCB is found, display pid message and return end of list code
+		// No matching PCB is found, display PID message and return end of list code
 		System.out.println("PID not found");
 
 		return END_OF_LIST;
