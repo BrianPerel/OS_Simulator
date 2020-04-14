@@ -45,53 +45,53 @@ public class Perel_hw2Simulator {
 
 	final static long PROGRAM_HALTED = 1; // halt instruction code
 	final static long OK = 0; // status code for successful execution
-	final static long END_OF_PROGRAM = -1; // variable to indicate that end of machine program has been reached 
+	final static long END_OF_PROGRAM = -1; // variable to indicate that end of machine program has been reached
 
-	final static long END_OF_LIST = -1; // variable to indicate that end of OS or User Free List has been encountered 
-	static long RQ = END_OF_LIST; // ready queue is set to end of list 
+	final static long END_OF_LIST = -1; // variable to indicate that end of OS or User Free List has been encountered
+	static long RQ = END_OF_LIST; // ready queue is set to end of list
 	static long WQ = END_OF_LIST; // waiting queue is set to end of list
-	static long OSFreeList = END_OF_LIST; // set User Free List to empty list 
+	static long OSFreeList = END_OF_LIST; // set User Free List to empty list
 	static long UserFreeList = END_OF_LIST; // set User Free List to empty list
-	static long ProcessID = 1; // variable to hold the current process ID, incremented by 1 every time a new process is created 
+	static long ProcessID = 1; // variable to hold the current process ID, incremented by 1 every time a new process is created
 	static long OSMode = 1; // variable to set system mode to OS Mode
 	static long UserMode = 2; // variable to set system mode to User Mode
 	static boolean shutdown = false; // flag used to indicate the HYPO Machine should shutdown
 	static long systemShutdownStatus; // global shutdown status variable to check in main and exit system
-	static long ThisPCB; // PCB class instance to make a connection between main class and PCB class 
-	final static long DEFAULT_PRIORITY = 128; // set default priority to middle value in priority range 
-	final static long READY_STATE = 1; // variable to indicate CPU ready state 
+	static long ThisPCB; // PCB class instance to make a connection between main class and PCB class
+	final static long DEFAULT_PRIORITY = 128; // set default priority to middle value in priority range
+	final static long READY_STATE = 1; // variable to indicate CPU ready state
 	final static long WAITING_STATE = 2; // variable to indicate CPU waiting state
-	final static long RUNNING_STATE = 3; // variable to indicate CPU running state 
+	final static long RUNNING_STATE = 3; // variable to indicate CPU running state
 	final static long TIMESLICE = 200; // variable time slice is set to 200 clock ticks
 	final static long MAX_MEMORY_ADDRESS = 3499; // the highest memory address you can use
 	final static long HALT_IN_PROGRAM_REACHED = 1; // variable used to indicate the CPU() has reached a halt
 	final static long TIME_SLICE_EXPIRED = 2; // variable used to indicate that a time slice expiration point was reached
-	final static long START_ADDR_OF_OS_FREELIST = 4500; // variable to mark starting address of OS free list 
-	final static long START_ADDR_OF_USER_FREELIST = 2500; // variable to mark start address of user free list 
-	final static long END_ADDR_OF_USER_FREELIST = 4499; // variable to mark end address of user free list 
-	final static long IO_GETCINTERRUPT = 3; // variable used when "input operation is completed" interrupt is encountered 
+	final static long START_ADDR_OF_OS_FREELIST = 4500; // variable to mark starting address of OS free list
+	final static long START_ADDR_OF_USER_FREELIST = 2500; // variable to mark start address of user free list
+	final static long END_ADDR_OF_USER_FREELIST = 4499; // variable to mark end address of user free list
+	final static long IO_GETCINTERRUPT = 3; // variable used when "input operation is completed" interrupt is encountered
 	final static long IO_PUTCINTERRUPT = 4; // variable used when "output operation is completed" interrupt is encountered
 	final static long PCB_SIZE = 12; // Java allocates 12 bytes for every object so PCB size is set to 12
 
 	/* HYPO machine error codes, error codes are less than 0, check for errors at every step of OS execution */
 	final static long RUN_TIME_ERROR = -2;
-	final static long ERROR_FILE_OPEN = -3; // error code to indicate file could not be opened 
+	final static long ERROR_FILE_OPEN = -3; // error code to indicate file could not be opened
 	final static long ERROR_INVALID_ADDRESS = -4; // error code to indicate invalid address was given
 	final static long ERROR_NO_END_OF_PROGRAM = -5; // error code to indicate end of program could not be reached while reading a machine program in absolute loader
 	final static long ERROR_INVALID_PC_VALUE = -6; // error code to indicate invalid PC value encountered, outside of allowed range of PC values
 	final static long ERROR_INVALID_OPCODE_VALUE = -7; // error code to indicate invalid opcode value encountered, outside of allowed range of opcode values
-	final static long ERROR_INVALID_GPR_VALUE = -8; // error code to indicate invalid GPR value encountered, outside of allowed range of GPR values 
-	final static long ERROR_REACHED_HALT_INSTRUCTION = -9; // error code to indicate halt instruction encountered in CPU() while executing program instructions 
-	final static long ERROR_INVALID_MODE = -10; // error code to indicate invalid mode encountered  
-	final static long ERROR_INVALID_MEMORY_ADDRESS = -11; // error code to indicate invalid memory address encountered 
-	final static long ERROR_INVALID_ID = -12; // error code to indicate invalid ID value encountered 
-	final static long ERROR_NO_FREE_MEMORY = -13; // error code to indicate no free memory left, all used by program 
-	final static long ERROR_INVALID_MEMORY_SIZE = -14; // error code to indicate invalid memory size encountered 
-	final static long ERROR_INVALID_SIZE_OR_MEMORY_ADDRESS = -15; // error code to indicate invalid size or memory address encountered, outside of range 
+	final static long ERROR_INVALID_GPR_VALUE = -8; // error code to indicate invalid GPR value encountered, outside of allowed range of GPR values
+	final static long ERROR_REACHED_HALT_INSTRUCTION = -9; // error code to indicate halt instruction encountered in CPU() while executing program instructions
+	final static long ERROR_INVALID_MODE = -10; // error code to indicate invalid mode encountered
+	final static long ERROR_INVALID_MEMORY_ADDRESS = -11; // error code to indicate invalid memory address encountered
+	final static long ERROR_INVALID_ID = -12; // error code to indicate invalid ID value encountered
+	final static long ERROR_NO_FREE_MEMORY = -13; // error code to indicate no free memory left, all used by program
+	final static long ERROR_INVALID_MEMORY_SIZE = -14; // error code to indicate invalid memory size encountered
+	final static long ERROR_INVALID_SIZE_OR_MEMORY_ADDRESS = -15; // error code to indicate invalid size or memory address encountered, outside of range
 	final static long ERROR_NO_AVAILABLE_MEMORY = -16; // error code to indicate no available memory left
-	final static long ERROR_REQUESTED_MEMORY_TOO_SMALL = -17; // error code to indicate requested (input) memory is too small 
-	
-	static Scanner scan = new Scanner(System.in); // console input object instance 
+	final static long ERROR_REQUESTED_MEMORY_TOO_SMALL = -17; // error code to indicate requested (input) memory is too small
+
+	static Scanner scan = new Scanner(System.in); // console input object instance
     static ArrayList<PCB> PCBs = new ArrayList<PCB>(); // declare array list with PCB class as the type, needed to store the PCBs. For every process we have a different PCB, so use array list to store them dynamically
 
 	/**
@@ -134,12 +134,12 @@ public class Perel_hw2Simulator {
 
 		initializeSystem(); // initialize all OS hardware, reset memory when OS starts
 
-		System.out.println("Starting OS...");
+		System.out.println("\nStarting OS...");
 
 		// main loop of HYPO machine runs until shutdown
 		while(!shutdown) {
 
-			long runningPCBptr = -1;
+			long runningPCBptr = 0;
 
 			status = checkAndProcessInterrupt(); // check and process interrupt
 
@@ -156,6 +156,8 @@ public class Perel_hw2Simulator {
 			// select next process from RQ to give CPU
 			runningPCBptr = selectProcessFromRQ();
 
+			runningPCBptr = 0; /***************************************** TEMP SOLUTION, REMOVE WHEN READY *****************************************/
+
 			// perform restore context using dispatcher
 			dispatcher(runningPCBptr);
 
@@ -166,10 +168,11 @@ public class Perel_hw2Simulator {
 			printPCB(runningPCBptr);
 
 			// execute instructions of the running process using the CPU
-			System.out.println("Executing CPU...");
+			System.out.println("\n\nExecuting CPU...");
 			status = CPU();
+			System.out.println("\nCPU execution completed");
 
-			dumpMemory("Dynamic memory area after executing program", 0, 99);
+			dumpMemory("\nDynamic memory area after executing program", 0, 99);
 
 			if(status == TIME_SLICE_EXPIRED) {
 				System.out.println("\nTime slice has expired, saving context and inserting back into RQ");
@@ -246,7 +249,7 @@ public class Perel_hw2Simulator {
 		}
 
 		// create user free list using the free block address and size
-		UserFreeList = START_ADDR_OF_USER_FREELIST; // set user free list to 2500 
+		UserFreeList = START_ADDR_OF_USER_FREELIST; // set user free list to 2500
 		hypoMainMemory[(int) (UserFreeList + 3499)] = END_OF_LIST;
 		hypoMainMemory[(int) (UserFreeList + 1)] = START_ADDR_OF_USER_FREELIST;
 
@@ -255,7 +258,7 @@ public class Perel_hw2Simulator {
 		hypoMainMemory[(int) (OSFreeList + 3499)] = END_OF_LIST; // 7999
 		hypoMainMemory[(int) (OSFreeList + 1)] = START_ADDR_OF_OS_FREELIST; // 3500
 
-		System.out.println("Hardware units successfully initialized.");
+		System.out.print("Hardware units successfully initialized.");
 
 		String filename = "Null.txt";
 		createProcess(filename, 0);
@@ -279,7 +282,7 @@ public class Perel_hw2Simulator {
 	 *   @param String filename: String specifying the name of file of machine language program to load. File must exist in project working directory
 	 *
 	 * Output Parameters:
-	 * 	 None 
+	 * 	 None
 	 *
 	 * Function return values:
 	 * 	 @return ErrorFileOpen: returns file open error code
@@ -291,7 +294,6 @@ public class Perel_hw2Simulator {
 
 			File fileObj = new File(file); // create file object
 			BufferedReader br = new BufferedReader(new FileReader(fileObj)); // create bufferedReader object to read from file
-
 			// load the program from given filename into HYPO main memory
 			try {
 
@@ -300,7 +302,6 @@ public class Perel_hw2Simulator {
 					br.close();
 					return ERROR_FILE_OPEN;
 				}
-
 
 				String st; // create string to store current line into
 				String temp = ""; // temp 1
@@ -311,7 +312,6 @@ public class Perel_hw2Simulator {
 				// access table in file, each line is 1 record, use a delimeter (space) to assign first number in left column of record to address variable and then assign second number to second variable
 				// read 1 line of file at a time until null is detected (end of file)
 				while((st = br.readLine()) != null)  {
-
 					temp = st.split("\t", 2)[0]; // read from file and split string by the tab, whatever is before goes into variable (read first column of machine code file line)
 					temp2 = st.split("\t", 2)[1]; // read from file and split string b the tab, but now whatever is after goes into variable (read second column of machine code file line)
 					address = Long.parseLong(temp.trim()); // use trim() to eliminate extra whitespace between address and content values in line from file
@@ -435,7 +435,7 @@ public class Perel_hw2Simulator {
 				return ERROR_INVALID_MODE;
 			}
 
-			///check for invalid GPR#: error = !(0-7) 
+			///check for invalid GPR#: error = !(0-7)
 			if(Op1GPR < 0 || Op1GPR > 7 || Op2GPR < 0 && Op2GPR > 7) {
 				System.out.println("\nError: Invalid GPR value found. Return error code: " + ERROR_INVALID_GPR_VALUE);
 				return ERROR_INVALID_GPR_VALUE;
@@ -682,7 +682,7 @@ public class Perel_hw2Simulator {
 					else {
 						pc++;
 					}
-					
+
 					clock += 4;
 					timeLeft -= 4;
 					break;
@@ -711,7 +711,7 @@ public class Perel_hw2Simulator {
 					else {
 						pc++;
 					}
-					
+
 					clock += 4;
 					timeLeft -= 4;
 					break;
@@ -740,7 +740,7 @@ public class Perel_hw2Simulator {
 					else {
 						pc++;
 					}
-					
+
 					clock += 4;
 					timeLeft -= 4;
 					break;
@@ -759,7 +759,7 @@ public class Perel_hw2Simulator {
 
 					sp++;
 					hypoMainMemory[(int) sp] = Op1Value;
-					
+
 					clock += 2;
 					timeLeft -= 2;
 					break;
@@ -778,7 +778,7 @@ public class Perel_hw2Simulator {
 
 					Op1Value = hypoMainMemory[(int) sp];
 					sp--;
-					
+
 					clock += 2;
 					timeLeft -= 2;
 					break;
@@ -817,7 +817,7 @@ public class Perel_hw2Simulator {
 	/**
 	 * Method name: FetchOperand
 	 *
-	 * Task Description: take in operand mode to determine which case is to be executed 
+	 * Task Description: take in operand mode to determine which case is to be executed
 	 *
 	 * Input Parameters:
 	 *   Op1Mode		Operand Mode value
@@ -946,7 +946,7 @@ public class Perel_hw2Simulator {
 		else {
 			// Print GPR row title
 			System.out.println("GPRs:\t G0\tG1\tG2\tG3\tG4\tG5\tG6\tG7\tSP\tPC");
-	
+
 			// Print GPR values
 			for(int x = 0; x < gpr.length; x++) {
 				if(x == 0) {
@@ -956,20 +956,20 @@ public class Perel_hw2Simulator {
 					System.out.print("\t" + gpr[x]);
 				}
 			}
-	
+
 			System.out.printf("\t%d\t%d%n", sp, pc);
-	
+
 			// Print memory column headers
 			System.out.print("\nAddress: +0\t+1\t+2\t+3\t+4\t+5\t+6\t+7\t+8\t+9\n");
-	
+
 			long addr = startAddress;
-	
+
 			// Print memory values
 			while(addr <= endAddress) {
 				if(addr >= 10) System.out.print("\n" + addr);
-				
+
 				else System.out.print(addr);
-	
+
 				for(int i = 0; i < 10; i++) {
 					if(addr <= endAddress) {
 						System.out.print("\t " + hypoMainMemory[(int) addr]);
@@ -978,7 +978,7 @@ public class Perel_hw2Simulator {
 					else break;
 				}
 			}
-	
+
 			System.out.println("\n\nClock: " + clock); // display clock information
 			System.out.print("PSR: " + psr + "\n"); // display PSR register information
 		}
@@ -1018,6 +1018,7 @@ public class Perel_hw2Simulator {
 
 		// load the program
 		long value = absoluteLoader(filename);
+
 		if(value < 0) {
 			return value; // check for program loading error
 		}
@@ -1045,7 +1046,6 @@ public class Perel_hw2Simulator {
 		PCBs.get((int) ThisPCB).setPriority(DEFAULT_PRIORITY);
 
 		dumpMemory("\nDumping memory addresses in user program area", 0, 99);
-		// StartAddrOfUserProgramArea = 0, TotalUserProgramArea =
 
 		printPCB(PCBptr); // print PCB passing PCBptr
 		insertIntoRQ(PCBptr); // insert PCB into ready queue passing PCBptr
@@ -1065,8 +1065,9 @@ public class Perel_hw2Simulator {
 	 * @param PCBptr: The pointer of the PCB block used to identify it in memory and in queues
 	 */
 	public static long initializePCB(long PCBptr) {
-		long[] PCB_GPR = new long[11]; // declare PCB GPR array
-		for(int i = 0; i < PCB_SIZE; i++) {
+		long[] PCB_GPR = new long[8]; // declare PCB GPR array
+
+		for(int i = 0; i < PCB_GPR.length; i++) {
 			PCB_GPR[i] = 0;
 		}
 
@@ -1098,19 +1099,19 @@ public class Perel_hw2Simulator {
 	 * @param PCBptr
 	 */
 	public static void printPCB(long PCBptr) {
-		System.out.println("Contents of the PCB:" +
+		System.out.println("\nContents of the PCB in memory:" +
 				"\nPCB address = " + PCBs.get((int) ThisPCB).getPCBptr() +
-				"\nNext PCB ptr = " + PCBs.get((int) ThisPCB).getNextPCBPointer() +
-				"\nPID = " + PCBs.get((int) ThisPCB).getPID() +
-				"\nState = " + PCBs.get((int) ThisPCB).getState() +
-				"\nPC = " + PCBs.get((int) ThisPCB).getPC() +
-				"\nSP = " + PCBs.get((int) ThisPCB).getSP() +
-				"\nPriority = " + PCBs.get((int) ThisPCB).getPriority() +
-				"\nStack info: start address = " + PCBs.get((int) ThisPCB).getStackStartAddress() +
+				", Next PCB ptr = " + PCBs.get((int) ThisPCB).getNextPCBPointer() +
+				", PID = " + PCBs.get((int) ThisPCB).getPID() +
+				", State = " + PCBs.get((int) ThisPCB).getState() +
+				", PC = " + PCBs.get((int) ThisPCB).getPC() +
+				", SP = " + PCBs.get((int) ThisPCB).getSP() +
+				", Priority = " + PCBs.get((int) ThisPCB).getPriority() +
+				", Stack info: start address = " + PCBs.get((int) ThisPCB).getStackStartAddress() +
 				" , size = " + PCBs.get((int) ThisPCB).getStackSize());
 
 				// print 8 GPR values: GPRs = print 8 values of GPR 0 to GPR 7
-				System.out.println("GPRs = ");
+				System.out.print("GPRs:\t");
 				long[] gprArr = PCBs.get((int) ThisPCB).getGPR();
 				for(int x = 0; x < 8; x++)
 					System.out.print("GPR" + x + ": " + gprArr[x] + " ");
@@ -1163,7 +1164,7 @@ public class Perel_hw2Simulator {
 
 		// check for valid PCB memory address
 		if(PCBptr < 0 || PCBptr > MAX_MEMORY_ADDRESS) {
-			System.out.println("Error: Invalid memory range detected. Return error code: " + ERROR_INVALID_ADDRESS);
+			System.out.println("\nError: Invalid memory range detected. Return error code: " + ERROR_INVALID_ADDRESS);
 			return ERROR_INVALID_MEMORY_ADDRESS;
 		}
 
@@ -1243,7 +1244,7 @@ public class Perel_hw2Simulator {
 	 */
 	public static long selectProcessFromRQ() {
 		long PCBptr = RQ; // first entry in RQ
-		PCBs.get((int) ThisPCB).setPCBptr(PCBptr); // update the PCBptr field in the class too with above value
+	//	PCBs.get((int) ThisPCB).setPCBptr(PCBptr); // update the PCBptr field in the class too with above value
 
 		if(RQ != END_OF_LIST) {
 			// remove first PCB from RQ
@@ -1294,12 +1295,14 @@ public class Perel_hw2Simulator {
 	 */
 	public static void dispatcher(long PCBptr) {
 		/* copy CPU GPR register values from given PCB into the CPU registers, opposite of save CPU context */
+		PCBptr = 0; /**************** NEED TO CHANGE THIS, TEMP SOLUTION **************/
 
 		// copy whole GPR array into a temporary GPR array
-		long[] PCBgpr = PCBs.get((int) PCBptr).getGPR();
+		long[] PCBgpr = PCBs.get((int) PCBptr).getGPR().clone(); // used clone() to create a clone array of PCB GPR array
 		for(int i = 0; i < 8; i++) {
 			gpr[i] = PCBgpr[i];
 		}
+
 
 		sp = PCBs.get((int) PCBptr).getSP();
 		pc = PCBs.get((int) PCBptr).getPC();
@@ -1590,7 +1593,7 @@ public class Perel_hw2Simulator {
 	public static void isrRunProgramInterrupt() throws IOException {
 
 		// prompt and read filename
-		System.out.println("Enter name of program to run - machine language program (add .txt to the end): ");
+		System.out.print("Enter name of program to run - machine language program (add .txt to the end): ");
 		String filename = scan.next();
 
 		// create the process
