@@ -56,7 +56,6 @@ public class Perel_hw2Simulator {
 	static long OSMode = 1; // variable to set system mode to OS Mode
 	static long UserMode = 2; // variable to set system mode to User Mode
 	static boolean shutdown = false; // flag used to indicate the HYPO Machine should shutdown
-	static long systemShutdownStatus; // global shutdown status variable to check in main and exit system
 	static long ThisPCB; // PCB class instance to make a connection between main class and PCB class
 	final static long DEFAULT_PRIORITY = 128; // set default priority to middle value in priority range
 	final static long READY_STATE = 1; // variable to indicate CPU ready state
@@ -67,12 +66,15 @@ public class Perel_hw2Simulator {
 	final static long HALT_IN_PROGRAM_REACHED = 1; // variable used to indicate the CPU() has reached a halt
 	final static long TIME_SLICE_EXPIRED = 2; // variable used to indicate that a time slice expiration point was reached
 	final static long START_ADDR_OF_OS_FREELIST = 4500; // variable to mark starting address of OS free list
+	final static long START_ADDR_OF_USER_PROGRAM_AREA = 0; // variable to hold starting address of the user program area
+	final static long END_ADDR_OF_USER_PROGRAM_AREA = 2499; // variable to hold end address of user program area
 	final static long START_ADDR_OF_USER_FREELIST = 2500; // variable to mark start address of user free list
 	final static long END_ADDR_OF_USER_FREELIST = 4499; // variable to mark end address of user free list
 	final static long IO_GETCINTERRUPT = 3; // variable used when "input operation is completed" interrupt is encountered
 	final static long IO_PUTCINTERRUPT = 4; // variable used when "output operation is completed" interrupt is encountered
 	final static long PCB_SIZE = 12; // Java allocates 12 bytes for every object so PCB size is set to 12
-
+	static long runningPCBptr = END_OF_LIST;
+	
 	/* HYPO machine error codes, error codes are less than 0, check for errors at every step of OS execution */
 	final static long RUN_TIME_ERROR = -2;
 	final static long ERROR_FILE_OPEN = -3; // error code to indicate file could not be opened
@@ -95,7 +97,7 @@ public class Perel_hw2Simulator {
     static ArrayList<PCB> PCBs = new ArrayList<PCB>(); // declare array list with PCB class as the type, needed to store the PCBs. For every process we have a different PCB, so use array list to store them dynamically
 
 	/**
-	 * Method name: main
+	 * Method Name: main
 	 *
 	 * Task Description:
 	 *   calls initializeSystem method,
@@ -114,7 +116,7 @@ public class Perel_hw2Simulator {
 	 * Output Parameters:
 	 *   None
 	 *
-	 * Function return values:
+	 * Method Return Values:
 	 *	 note: can't return from main in Java, so instead I put print statements with error
 	 *   @return RunTimeError: returns run time error code
 	 *   @return ErrorFileOpen: returns file open error code
@@ -138,8 +140,6 @@ public class Perel_hw2Simulator {
 
 		// main loop of HYPO machine runs until shutdown
 		while(!shutdown) {
-
-			long runningPCBptr = 0;
 
 			status = checkAndProcessInterrupt(); // check and process interrupt
 
@@ -208,7 +208,7 @@ public class Perel_hw2Simulator {
 
 
 	/**
-	 * Method name: initializeSystem
+	 * Method Name: initializeSystem
 	 *
 	 * Task Description:
 	 * 	 Set (initialize) all global system hardware components to 0
@@ -233,7 +233,7 @@ public class Perel_hw2Simulator {
 	 * Output Parameters:
 	 *   None
 	 *
-	 * Function return value:
+	 * Method Return Values:
 	 *   None
 	 * @throws IOException
 	 */
@@ -267,7 +267,7 @@ public class Perel_hw2Simulator {
 
 
 	/**
-	 * Method name: absoluteLoader
+	 * Method Name: absoluteLoader
 	 *
 	 * Task Description:
 	 *   Open the file containing HYPO machine user program
@@ -284,7 +284,7 @@ public class Perel_hw2Simulator {
 	 * Output Parameters:
 	 * 	 None
 	 *
-	 * Function return values:
+	 * Method Return Values:
 	 * 	 @return ErrorFileOpen: returns file open error code
 	 * 	 @return ErrorInvalidAddress: returns invalid address error code
 	 *   @return ErrorNoEndOfProgram: returns no end of program error code
@@ -355,7 +355,7 @@ public class Perel_hw2Simulator {
 
 
 	/**
-	 * Method name: CPU
+	 * Method Name: CPU
 	 *
 	 * Task Description:
 	 *   Method (executes program) performs fetch-decode-execute cycle for
@@ -371,7 +371,7 @@ public class Perel_hw2Simulator {
 	 * Output Parameters:
 	 *   None
 	 *
-	 * Function return values
+	 * Method Return Values
 	 *   @return status: returns status value of current CPU execution of program
 	 *   @return ErrorInvalidAddress: returns invalid address error code
 	 *   @return ErrorInvalidOpcodeValue: returns invalid opcode value error code
@@ -387,7 +387,7 @@ public class Perel_hw2Simulator {
 
 		// below 5 variables make up a word instruction
 		long Opcode, Op1Mode, Op1GPR, Op2Mode, Op2GPR, Op1Value = 0;
-		long Op1Address, Op2Value, Op2Address, result = 0;
+		long Op1Address, Op2Value, Op2Address, result;
 
 		// addressing modes
 		long registerMode = 0;
@@ -396,14 +396,13 @@ public class Perel_hw2Simulator {
 		do {
 
 			// Fetch cycle: fetch (read) first word of instruction pointed by PC
-			if(pc >= 0 && pc <= 3499) {
-				mar = pc;
-				pc++;
-				mar = mbr;
+			if(pc >= 0 && pc <= 2499) {
+				mar = pc++;
+				mbr = hypoMainMemory[(int) mar];
 			}
 			else {
-				System.out.println("Invalid address runtime error. Return error code: " + ERROR_INVALID_ADDRESS);
-				return ERROR_INVALID_ADDRESS;
+				System.out.println("Invalid address runtime error. Returning error code: " + ERROR_INVALID_PC_VALUE);
+				return ERROR_INVALID_PC_VALUE;
 			}
 
 			IR = mbr;
@@ -430,7 +429,7 @@ public class Perel_hw2Simulator {
 			}
 
 			// check for invalid mode#
-			if(Op1Mode >= 0 && Op1Mode <= 6 && Op2Mode >= 0 && Op2Mode <= 6) {
+			if(Op1Mode < 0 && Op1Mode > 6 && Op2Mode < 0 && Op2Mode > 6) {
 				System.out.println("\nError: Invalid mode found. Return error code: " + ERROR_INVALID_MODE);
 				return ERROR_INVALID_MODE;
 			}
@@ -459,8 +458,7 @@ public class Perel_hw2Simulator {
 					status = recieve.getStat();
 
 					if(!(status > 0))  {
-						System.out.println(status);
-						return ERROR_INVALID_ADDRESS;
+						return status;
 					}
 
 					// pass argument variables to fetchOperand(), method performs appropriate op and returns object, use instance methods to retrieve object values in below variables
@@ -484,7 +482,7 @@ public class Perel_hw2Simulator {
 					else if(Op1Mode == immediateMode)
 						System.out.println("Error destination operand mode cannot be immediate mode");
 					else
-						result = hypoMainMemory[(int) Op1Address];
+						hypoMainMemory[(int) Op1Address] = result;
 
 					clock += 3;
 					timeLeft -= 3;
@@ -492,7 +490,7 @@ public class Perel_hw2Simulator {
 				}
 
 				case 2: { // subtract instruction
-
+					
 					// pass argument variables to fetchOperand(), method performs appropriate op and returns object, use instance methods to retrieve object values in below variables
 					recieve = fetchOperand(Op1Mode, Op1GPR);
 					Op1Value = recieve.getOpValue();
@@ -523,7 +521,7 @@ public class Perel_hw2Simulator {
 					else if(Op1Mode == immediateMode)
 						System.out.println("Error destination operand mode cannot be immediate mode");
 					else
-						result = hypoMainMemory[(int) Op1Address];
+						hypoMainMemory[(int) Op1Address] = result;
 
 					clock += 3;
 					timeLeft -= 3;
@@ -560,7 +558,7 @@ public class Perel_hw2Simulator {
 					else if(Op1Mode == immediateMode)
 						System.out.println("Error destination operand mode cannot be immediate mode");
 					else
-						result = hypoMainMemory[(int) Op1Address];
+						hypoMainMemory[(int) Op1Address] = result;
 
 					clock += 6;
 					timeLeft -= 6;
@@ -602,7 +600,7 @@ public class Perel_hw2Simulator {
 					else if(Op1Mode == immediateMode)
 						System.out.println("Error destination operand mode cannot be immediate mode");
 					else
-						result = hypoMainMemory[(int) Op1Address];
+						hypoMainMemory[(int) Op1Address] = result;
 
 					clock += 6;
 					timeLeft -= 6;
@@ -646,7 +644,7 @@ public class Perel_hw2Simulator {
 				}
 
 				case 6: { // branch instruction
-					if(pc >= 0 && pc <= 3499)
+					if(pc >= 0 && pc <= 2499)
 						pc = hypoMainMemory[(int) pc];
 
 					else {
@@ -671,7 +669,7 @@ public class Perel_hw2Simulator {
 					}
 
 					if(Op1Value < 0) {
-						if(pc >= 0 && pc <= 3499)
+						if(pc >= 0 && pc <= 2499)
 							pc = hypoMainMemory[(int) pc];
 
 						else {
@@ -679,9 +677,7 @@ public class Perel_hw2Simulator {
 							return ERROR_INVALID_PC_VALUE;
 						}
 					}
-					else {
-						pc++;
-					}
+					else pc++;
 
 					clock += 4;
 					timeLeft -= 4;
@@ -700,7 +696,7 @@ public class Perel_hw2Simulator {
 					}
 
 					if(Op1Value > 0) {
-						if(pc >= 0 && pc <= 3499)
+						if(pc >= 0 && pc <= 2499)
 							pc = hypoMainMemory[(int) pc];
 
 						else {
@@ -708,9 +704,7 @@ public class Perel_hw2Simulator {
 							return ERROR_INVALID_PC_VALUE;
 						}
 					}
-					else {
-						pc++;
-					}
+					else pc++;
 
 					clock += 4;
 					timeLeft -= 4;
@@ -729,7 +723,7 @@ public class Perel_hw2Simulator {
 					}
 
 					if(Op1Value == 0) {
-						if(pc >= 0 && pc <= 3499)
+						if(pc >= 0 && pc <= 2499)
 							pc = hypoMainMemory[(int) pc];
 
 						else {
@@ -737,9 +731,7 @@ public class Perel_hw2Simulator {
 							return ERROR_INVALID_PC_VALUE;
 						}
 					}
-					else {
-						pc++;
-					}
+					else pc++;
 
 					clock += 4;
 					timeLeft -= 4;
@@ -787,7 +779,7 @@ public class Perel_hw2Simulator {
 				case 12: { // system call instruction
 
 					// check if PC value is in invalid range
-					if(pc <= 0 && pc >= 3499) {
+					if(pc <= 0 && pc >= 2499) {
 						System.out.println("Error invalid PC value encountered. Returning error code: " + ERROR_INVALID_PC_VALUE);
 						return ERROR_INVALID_PC_VALUE;
 					}
@@ -815,7 +807,7 @@ public class Perel_hw2Simulator {
 
 
 	/**
-	 * Method name: FetchOperand
+	 * Method Name: FetchOperand
 	 *
 	 * Task Description: take in operand mode to determine which case is to be executed
 	 *
@@ -827,7 +819,7 @@ public class Perel_hw2Simulator {
 	 * 	 OpAddress		Address of operand
 	 * 	 OpValue		Operand value when mode and GPR are valid
 	 *
-	 * Function return values:
+	 * Method Return Values:
 	 *   @return returnFetchOps - Object that returns 3 things: status, OpValue, OpAddress
 	 */
 	public static returnFetchOps fetchOperand(long OpMode, long OpGPR) {
@@ -837,7 +829,7 @@ public class Perel_hw2Simulator {
 
 		switch((int) OpMode) {
 			case 1: // register mode
-				OpAddress = -1;
+				OpAddress = -2;
 				OpValue = gpr[(int) OpGPR];
 				stat = OK;
 				break;
@@ -845,7 +837,7 @@ public class Perel_hw2Simulator {
 			case 2: // register deferred mode -> Op address is in GPR and value in memory
 				OpAddress = gpr[(int) OpGPR];
 
-				if(OpAddress >= 0 && OpAddress <= 3499) {
+				if(OpAddress <= END_ADDR_OF_USER_FREELIST && OpAddress >= START_ADDR_OF_USER_FREELIST) {
 					OpValue = hypoMainMemory[(int) OpAddress];
 				}
 				else {
@@ -856,7 +848,7 @@ public class Perel_hw2Simulator {
 
 			case 3: // Auto-increment mode - Op address in GPR and Op value in memory
 				OpAddress = gpr[(int) OpGPR];
-				if(OpAddress >= 0 && OpAddress <= 3499) {
+				if(OpAddress <= END_ADDR_OF_USER_FREELIST && OpAddress >= START_ADDR_OF_USER_FREELIST) {
 					OpValue = hypoMainMemory[(int) OpAddress];
 				}
 				else {
@@ -869,7 +861,7 @@ public class Perel_hw2Simulator {
 			case 4: // Auto-decrement mode
 				--gpr[(int) OpGPR];
 				OpAddress = gpr[(int) OpGPR];
-				if(OpAddress >= 0 && OpAddress <= 3499) {
+				if(OpAddress <= END_ADDR_OF_USER_FREELIST && OpAddress >= START_ADDR_OF_USER_FREELIST) {
 					OpValue = hypoMainMemory[(int) OpAddress];
 				}
 				else {
@@ -879,7 +871,7 @@ public class Perel_hw2Simulator {
 				break;
 
 			case 5: // direct mode - operand address is in the instruction pointed by PC
-				if(pc <= 0 && pc >= 3499) {
+				if(pc <= 0 && pc >= 2499) {
 					OpAddress = hypoMainMemory[(int) pc++];
 				}
 				OpAddress = hypoMainMemory[(int) pc++];
@@ -893,8 +885,8 @@ public class Perel_hw2Simulator {
 				break;
 
 			case 6: // Immediate mode - operand value is in the instruction
-				if(pc <= 0 && pc >= 3499) {
-					OpAddress = -1;
+				if(pc <= 0 && pc >= 2499) {
+					OpAddress = -2;
 					OpValue = hypoMainMemory[(int) pc++];
 				}
 				else {
@@ -917,7 +909,7 @@ public class Perel_hw2Simulator {
 
 
 	/**
-	 * Method name: DumpMemory
+	 * Method Name: DumpMemory
 	 *
 	 * Task Description:
 	 *  Displays the content of the Hypo machine GPRs, the clock,
@@ -931,7 +923,7 @@ public class Perel_hw2Simulator {
 	 * Output Parameters:
 	 * 	 None
 	 *
-	 * Function return values:
+	 * Method Return Values:
 	 *   None
 	 */
 	public static void dumpMemory(String string, long startAddress, long size) {
@@ -987,22 +979,23 @@ public class Perel_hw2Simulator {
 
 
 	/**
-	 * Method name: create process
+	 * Method Name: create process
 	 *
-	 * Task Description: Method creates the process for the program and prepares the PCB block (object)
+	 * Task Description: Method creates the process for the program, 
+	 *  prepares the PCB block (object), initializes all PCB contents to 
+	 *  proper values, defines stack space for the program and dumps user 
+	 *  program area memory locations 
 	 *
 	 * Input Parameters:
 	 *  filename: filename of machine file for which were creating a process
-	 *  priority: the priority value of the process
+	 *  priority: the priority value of the process, indicates which process should be handled first 
 	 *
 	 * Output Parameters:
 	 *  None
 	 *
-	 * Function return values:
-	 * @param filename: program used by the absolute loader
-	 * @param priority: indicates which process should be handled first
-	 * @return OK: returns successful execution code
-	 * @throws IOException
+	 * Method Return Values:
+	 *  @return OK: returns successful execution code
+	 *  @throws IOException
 	 */
 	public static long createProcess(String filename, long priority) throws IOException {
 
@@ -1058,11 +1051,18 @@ public class Perel_hw2Simulator {
 	/**
 	 * Method Name: initializePCB
 	 *
-	 * Description: PCB (Process Control Block) is related to process - anything that calls create process will deal with PCB such as initializeSystem function
-	 * make PCB an object (constructor). Method is used to initialize a new PCB node. The new PCB will start at the specified address and have the specified PID.
-	 * It's priority will be set to the default priority of 128 and all other values are initialized to value of 0.
+	 * Task Description: PCB (Process Control Block) is related to process - anything that calls create process will deal with PCB such as initializeSystem function
+	 *  make PCB an object (constructor). Method is used to initialize a new PCB node. The new PCB will start at the specified address and have the specified PID.
+	 *  It's priority will be set to the default priority of 128 and all other values are initialized to value of 0.
 	 *
-	 * @param PCBptr: The pointer of the PCB block used to identify it in memory and in queues
+	 * Input Parameters: 
+	 *  PCBptr: memory location of the PCB, used to identify it in memory and in queues
+	 *  
+	 * Output Parameters:
+	 *  None 
+	 *
+	 * Method Return Values: 
+	 *  None
 	 */
 	public static long initializePCB(long PCBptr) {
 		long[] PCB_GPR = new long[8]; // declare PCB GPR array
@@ -1094,9 +1094,18 @@ public class Perel_hw2Simulator {
 	/**
 	 * Method Name: printPCB
 	 *
-	 * Print values of all the fields in the PCB
-	 *
-	 * @param PCBptr
+	 * Task Description: 
+	 *  Print values of all the fields in the PCB. This includes it's PID, state
+	 *  priority, SP, PC, size, next PCB pointer, GPR's, and stack address 
+	 *  
+	 * Input Parameters: 
+	 *  PCBptr: memory location of PCB 
+	 *  
+	 * Output Parameters:
+	 *  None 
+	 *  
+	 * Method Return Values:
+	 *  None 
 	 */
 	public static void printPCB(long PCBptr) {
 		System.out.println("\nContents of the PCB in memory:" +
@@ -1120,11 +1129,19 @@ public class Perel_hw2Simulator {
 
 
 	/**
-	 * Print given queue = queue can be ready queue or waiting queue
-	 * Walk through the queue from the given pointer until the end of list
+	 * Method Name: printQueue
+	 * 
+	 * Task Description: 
+	 *  Walk through the queue from the given pointer until the end of list
 	 *
-	 * @param Qptr
-	 * @return
+	 * Input Parameters: 
+	 *  @param Qptr
+	 *  
+	 * Output Parameters: 
+	 *  None 
+	 *  
+	 * Method return values: 
+	 *  @return OK: Success code, is returned if queue was printed 
 	 */
 	public static long printQueue(long Qptr) {
 
@@ -1147,16 +1164,24 @@ public class Perel_hw2Simulator {
 
 
 	/**
-	 * insertIntoRQ
+	 * Method Name: insertIntoRQ
 	 *
-	 * The ready queue is an ordered list. The first PCB in the queue has the highest priority.
-	 * Hence it will get the CPU next when CPU scheduling is done. Keeping RQ as an ordered linked list
-	 * will avoid having to search the list for the highest priority process that should get the CPU.
-	 * Therefore, insert the given PCB according to the CPU scheduling algorithm (Priority Round Robin Algorithm).
-	 * The scheduling algorithm is implemented at the time of inserting the ready PCB into the RQ.
+	 * Description:
+	 *  The ready queue is an ordered list. The first PCB in the queue has the highest priority.
+	 *  Hence it will get the CPU next when CPU scheduling is done. Keeping RQ as an ordered linked list
+	 *  will avoid having to search the list for the highest priority process that should get the CPU.
+	 *  Therefore, insert the given PCB according to the CPU scheduling algorithm (Priority Round Robin Algorithm).
+	 *  The scheduling algorithm is implemented at the time of inserting the ready PCB into the RQ.
 	 *
-	 * @param PCBptr
-	 * @return OK
+	 * Input Parameters: 
+	 *  @param PCBptr: memory location of the PCB 
+	 *  
+	 * Output Parameters: 
+	 *  None 
+	 *  
+	 * Method return values: 
+	 *  @return ERROR_INVALID_MEMORY_ADDRESS: Invalid memory address encountered 
+	 *  @return OK: success code, if PCB was inserted 
 	 */
 	public static long insertIntoRQ(long PCBptr) {
 		long previousPtr = END_OF_LIST;
@@ -1212,9 +1237,20 @@ public class Perel_hw2Simulator {
 
 	/**
 	 * Method Name: insertIntoWQ
-	 *
-	 * @param PCBptr
-	 * @return
+	 * 
+	 * Task Description: 
+	 *  Take PCBptr and insert it into front of waiting queue after 
+	 *  which we adjust the next pointer index value.
+	 *  
+	 * Input Parameters:
+	 *  @param PCBptr: memory location of the PCB 
+	 *  
+	 * Output Parameters:
+	 *  None 
+	 * 
+	 * Method return values: 
+	 *  @return OK: success code, if PCB was inserted into WQ 
+	 *  @return ERROR_INVALID_MEMORY_ADDRESS: invalid memory address encountered code 
 	 */
 	public static long insertIntoWQ(long PCBptr) {
 		// insert the given PCB at the front of WQ
@@ -1236,23 +1272,28 @@ public class Perel_hw2Simulator {
 	/**
 	 * Method Name: selectProcessFromRQ
 	 *
-	 * Description: Select first process from RQ to give CPU.
-	 * When CPU has to be allocated to the next process in RQ, select the first process
-	 * in the RQ and return the pointer to the PCB since processes in RQ are already ordered from highest to lowest priority
+	 * Task Description: 
+	 *  Select first process from RQ to give CPU. When CPU has to be allocated to the next process in RQ, select the first process
+	 *  in the RQ and return the pointer to the PCB since processes in RQ are already ordered from highest to lowest priority
 	 *
-	 * @return
+	 * Input Parameters: 
+	 *  None 
+	 *  
+	 * Output Parameter:
+	 *  None 
+	 *
+	 * Method Return Values: 
+	 *  @return PCBptr: PCB address of the first PCB in the ready queue 
 	 */
 	public static long selectProcessFromRQ() {
 		long PCBptr = RQ; // first entry in RQ
-	//	PCBs.get((int) ThisPCB).setPCBptr(PCBptr); // update the PCBptr field in the class too with above value
+		//	PCBs.get((int) ThisPCB).setPCBptr(PCBptr); // update the PCBptr field in the class too with above value
 
 		if(RQ != END_OF_LIST) {
-			// remove first PCB from RQ
-			RQ = PCBs.get((int) ThisPCB).getNextPCBPointer(); // set RQ = next PCB pointed by RQ
+			RQ = PCBs.get((int) ThisPCB).getNextPCBPointer(); // remove first PCB from RQ, set RQ to next PCB pointed by RQ
 		}
 
-		// set next point to EOL in the PCB; set next PCB field in the given PCB to END_OF_LIST
-		PCBs.get((int) ThisPCB).setNextPCBPointer(END_OF_LIST);
+		PCBs.get((int) ThisPCB).setNextPCBPointer(END_OF_LIST); // set next point to END_OF_LIST in the PCB; set next PCB field in the given PCB to END_OF_LIST
 
 		return PCBptr;
 	}
@@ -1260,15 +1301,24 @@ public class Perel_hw2Simulator {
 
 
 	/**
-	 * Method name: saveContext
+	 * Method Name: saveContext
 	 *
-	 * Description: Save CPU context into running process PCB.
-	 * Running process is going to lose the CPU. Hence, its CPU context has to be
-	 * saved in its PCB so that it can be restored when it gets the CPU at a later time.
-	 * CPU context consists of GPRs, SP, PC, and PSR.
-	 * Method used to store the specified value into the PCB who's start address is startAddress at this index's address.
+	 * Task Description:
+	 *  Save CPU context into running process PCB.
+	 *  Running process is going to lose the CPU. Hence, its CPU context has to be
+	 *  saved in its PCB so that it can be restored when it gets the CPU at a later time.
+	 *  CPU context consists of GPRs, SP, PC, and PSR.
+	 *  Method used to store the specified value into the PCB who's 
+	 *  start address is startAddress at this index's address.
 	 *
-	 * @param PCBptr
+	 * Input Parameters: 
+	 *  @param PCBptr: memory location of the PCB 
+	 *  
+	 * Output Parameters:
+	 *  None 
+	 *  
+	 * Method Return Values: 
+	 *  None 
 	 */
 	public static void saveContext(long PCBptr) {
 		// copy all CPU GPRs, SP, PC, and PSR values into PCB using PCBptr
@@ -1290,19 +1340,26 @@ public class Perel_hw2Simulator {
 
 	/**
 	 * Method Name: dispatcher
+	 * 
+	 * Task Description: 
+	 *  Take PCBptr and store its context to all hardware components. 
+	 *  Copy CPU GPR register values from given PCBptr into the CPU registers.
+	 *  Do the opposite operation of save context. 
 	 *
-	 * @param PCBptr
+	 * Input Parameters:
+	 *  @param PCBptr: memory location of the PCB 
+	 *  
+	 * Output Parameters: 
+	 *  None 
+	 *  
+	 * Method Return Values: 
+	 *  None 
 	 */
 	public static void dispatcher(long PCBptr) {
-		/* copy CPU GPR register values from given PCB into the CPU registers, opposite of save CPU context */
-		PCBptr = 0; /**************** NEED TO CHANGE THIS, TEMP SOLUTION **************/
-
-		// copy whole GPR array into a temporary GPR array
-		long[] PCBgpr = PCBs.get((int) PCBptr).getGPR().clone(); // used clone() to create a clone array of PCB GPR array
+		long[] PCBgpr = PCBs.get((int) PCBptr).getGPR().clone(); // copy whole GPR array into a temporary GPR array, then use temporary array to place values into CPU GPR array. Used clone() to create a clone array of PCB GPR array
 		for(int i = 0; i < 8; i++) {
 			gpr[i] = PCBgpr[i];
 		}
-
 
 		sp = PCBs.get((int) PCBptr).getSP();
 		pc = PCBs.get((int) PCBptr).getPC();
@@ -1313,15 +1370,26 @@ public class Perel_hw2Simulator {
 
 	/**
 	 * Method Name: terminateProcess
-	 *
-	 * @param PCBptr
+	 * 
+	 * Task Description: 
+	 *  Method terminates a process by freeing the stack and PCB memory 
+	 *  so that another process can have space. Return stack memory 
+	 *  using stack start address and stack size in the given PCB.
+	 *  Return PCB memory using the PCBptr. 
+	 *  
+	 * Input Parameters:
+	 *  @param PCBptr: memory address location of PCB 
+	 *  
+	 * Output Parameters: 
+	 *  None 
+	 *  
+	 * Method Return Values:
+	 *  None 
 	 */
 	public static void terminateProcess(long PCBptr) {
-		// return stack memory using stack start address and stack size in the given PCB
 		freeUserMemory(hypoMainMemory[(int) (PCBptr + PCBs.get((int) PCBptr).getStackStartAddress())],
 				hypoMainMemory[(int) (PCBptr + PCBs.get((int) PCBptr).getStackSize())]);
 
-		// return PCB memory using the PCBptr
 		freeOSMemory(PCBptr, PCB_SIZE);
 	}
 
@@ -1329,13 +1397,22 @@ public class Perel_hw2Simulator {
 
 	/**
 	 * Method Name: allocateOSMemory
-	 *
-	 * @param RequestedSize
-	 * @return
+	 * 
+	 * Task Description: 
+	 *  Method allocates (takes aside) a block of OS free memory to be used.
+	 *  
+	 * Input Parameters: 
+	 *  @param RequestedSize: memory size needed for allocation of block 
+	 *  
+	 * Output Parameters: 
+	 *  None 
+	 *  
+	 * Function Return Values: 
+	 *  @return ERROR_NO_FREE_MEMORY: if no free memory available 
+	 *  @return ERROR_INVALID_MEMORY_SIZE: if requested memory size is invalid value
+	 *  @return OK: success code, if memory allocation was completed successfully 
 	 */
 	public static long allocateOSMemory(long RequestedSize) {
-		/* Allocate memory from OS free space organized as a link */
-
 		// ensure OS free memory exists
 		if(OSFreeList == END_OF_LIST) {
 			System.out.println("\nError: The OS free list is empty and there is no memory available to allocate. Returning error code: " + ERROR_NO_FREE_MEMORY);
@@ -1408,10 +1485,22 @@ public class Perel_hw2Simulator {
 
 	/**
 	 * Method Name: freeOSMemory
+	 * 
+	 * Task Description: 
+	 *  Method takes a memory location and memory size and tries to free 
+	 *  in OS free list.
 	 *
-	 * @param ptr
-	 * @param size
-	 * @return
+	 * Input Parameters:
+	 *  @param ptr: Pointer of the block to free memory 
+	 *  @param size: size of the block 
+	 *  
+	 * Output Parameters:
+	 *  None 
+	 *  
+	 * Method Return Values:
+	 *  @return ERROR_INVALID_MEMORY_ADDRESS: if invalid memory address given
+	 *  @return ERROR_INVALID_SIZE_OR_MEMORY_ADDRESS: if invalid size or memory address given 
+	 *  @return OK: success code, if memory was freed successfully 
 	 */
 	public static long freeOSMemory(long ptr, long size) {
 
@@ -1441,9 +1530,20 @@ public class Perel_hw2Simulator {
 
 	/**
 	 * Method Name: allocateUserMemory
+	 * 
+	 * Task Description: 
+	 *  Method allocates a block of user memory to be used. 
 	 *
-	 * @param size
-	 * @return
+	 * Input Parameters:
+	 *  @param size: size needed for allocation of the block
+	 *  
+	 * Output Parameters:
+	 *  None 
+	 *  
+	 * Method Return Values: 
+	 *  @return ERROR_NO_FREE_MEMORY: if no free memory remaining 
+	 *  @return ERROR_REQUESTED_MEMORY_TOO_SMALL: if size of requested memory is to small
+	 *  @return OK: success code, if memory allocation was completed successfully
 	 */
 	public static long allocateUserMemory(long size) {
 		if(UserFreeList == END_OF_LIST) {
@@ -1507,10 +1607,21 @@ public class Perel_hw2Simulator {
 
 	/**
 	 * Method Name: freeUserMemory
+	 * 
+	 * Task Description: 
+	 *  Free user memory at pointer memory location with amount of size as given by size
 	 *
-	 * @param ptr
-	 * @param size
-	 * @return
+	 * Input Parameters:
+	 *  @param ptr: block pointer to free memory for 
+	 *  @param size: size of block to free user memory 
+	 * 
+	 * Output Parameters:
+	 *  None 
+	 *  
+	 * Method Return Values: 
+	 *  @return ERROR_INVALID_MEMORY_ADDRESS: if memory address trying to be freed is out of allowed range
+	 *  @return ERROR_INVALID_SIZE_OR_MEMORY_ADDRESS: if memory address trying to be freed is out of allowed range or improper given size
+	 *  @return OK: success code, if memory was successfully freed  
 	 */
 	public static long freeUserMemory(long ptr, long size) {
 
@@ -1539,10 +1650,21 @@ public class Perel_hw2Simulator {
 
 
 	/**
-	 * Method name: checkAndProcessInterrupt
+	 * Method Name: checkAndProcessInterrupt
 	 *
-	 * Description: Read interrupt ID number. Based on the interrupt ID, service the interrupt
-	 * @throws IOException
+	 * Task Description: 
+	 *  Read interrupt ID number. Based on the interrupt ID,
+	 *  service the interrupt by calling appropriate method using switch
+	 * 
+	 * Input Parameters: 
+	 *  None
+	 *  
+	 * Output Parameters: 
+	 *  None 
+	 *  
+	 * Method Return Values:
+	 *  @return interruptID: return entered interrupt ID   
+	 *  @throws IOException
 	 */
 	public static long checkAndProcessInterrupt() throws IOException {
 
@@ -1584,11 +1706,21 @@ public class Perel_hw2Simulator {
 
 
 	/**
-	 * Method name: isrRunProgramInterrupt
+	 * Method Name: isrRunProgramInterrupt
 	 *
-	 * Description: Run program interrupt service routine (ISR).
-	 * Read filename and create process
-	 * @throws IOException
+	 * Task Description: 
+	 *  Run program interrupt service routine (ISR).
+	 *  Read filename and create process
+	 *  
+	 * Input Parameters: 
+	 *  None 
+	 *  
+	 * Output Parameters: 
+	 *  None 
+	 *  
+	 * Method Return Values:
+	 *  None 
+	 *  @throws IOException
 	 */
 	public static void isrRunProgramInterrupt() throws IOException {
 
@@ -1604,6 +1736,20 @@ public class Perel_hw2Simulator {
 
 	/**
 	 * Method Name: isrInputCompletionInterrupt
+	 * 
+	 * Task Description: 
+	 *  Method services a 'input completion' request.
+	 *  By reading a PID entered by user, method searches the WQ for the PCB that 
+	 *  is a matched. This is input character is stored in GPR1. 
+	 *  
+	 * Input Parameters: 
+	 *  None 
+	 *  
+	 * Output Parameters: 
+	 *  None 
+	 *  
+	 * Method Return Values: 
+	 *  None 
 	 */
 	public static void isrInputCompletionInterrupt() {
 		System.out.print("\nEnter PID of the process completing input completion interrupt: ");
@@ -1628,6 +1774,20 @@ public class Perel_hw2Simulator {
 
 	/**
 	 * Method Name: isrOutputCompletionInterrupt
+	 * 
+	 * Task Description: 
+	 *  Method serves a 'input completion' request given by user. 
+	 *  It reads a PID entered by user, searches the WQ for the PCB that matches,
+	 *  and finally takes the input character and stores it in GPR1. 
+	 *  
+	 * Input Parameters: 
+	 *  None 
+	 *  
+	 * Output Parameters: 
+	 *  None 
+	 *  
+	 * Method Return Values: 
+	 *  None 
 	 */
 	public static void isrOutputCompletionInterrupt() {
 		System.out.print("\nEnter PID of the process completing input completion interrupt: ");
@@ -1650,10 +1810,20 @@ public class Perel_hw2Simulator {
 
 
 	/**
-	 * Method name: isrShutdownSystem
+	 * Method Name: isrShutdownSystem
 	 *
-	 * Description: terminate all processes in RQ and WQ and exit from the program.
-	 * This is the only place that the operating system program should exit.
+	 * Task Description: 
+	 *  terminate all processes in RQ and WQ and exit from the program.
+	 *  This is the only place that the operating system program should exit.
+	 *  
+	 * Input Parameters: 
+	 *  None 
+	 *  
+	 * Output Parameters: 
+	 *  None 
+	 *  
+	 * Method Return Values: 
+	 *  None 
 	 */
 	public static void isrShutdownSystem() {
 
@@ -1679,14 +1849,22 @@ public class Perel_hw2Simulator {
 
 
 	/**
-	 * Method name: searchAndRemovePCBFromWQ
+	 * Method Name: searchAndRemovePCBFromWQ
 	 *
-	 * Description: Search the WQ for the matching pid.
+	 * Task Description: 
+	 *  Search the WQ for the matching PID.
 	 *  When a match is found remove it from WQ and return PCB pointer.
-	 *  If no match is found, return invalid pid error code.
+	 *  If no match is found, return invalid PID error code.
 	 *
-	 * @param PID
-	 * @return
+	 * Input Parameters: 
+	 *  @param PID: process ID of which PCB will be removed from WQ
+	 *  
+	 * Output Parameters:
+	 *  None 
+	 *  
+	 * Method Return Values: 
+	 *  @return END_OF_LIST: returns value in END_OF_LIST 
+	 *  @return currentPCBptr: returns current PCBptr 
 	 */
 	public static long searchAndRemovePCBFromWQ(long PID) {
 		long currentPCBptr = WQ;
@@ -1722,10 +1900,20 @@ public class Perel_hw2Simulator {
 
 
 	/**
-	 * Method name: systemCall
-	 *
-	 * @param systemCallID
-	 * @return
+	 * Method Name: systemCall
+	 * 
+	 * Task Description: 
+	 *  Method takes a system call ID as argument and runs command that is 
+	 *  associated to this specific system call ID. 
+	 *  
+	 * Input Parameters: 
+	 *  @param systemCallID: system call ID number 
+	 * 
+	 * Output Parameters: 
+	 *  None 
+	 *  
+	 * Method Return Values: 
+	 *  @return status: returns status of method 
 	 */
 	public static long systemCall(long systemCallID) {
 
@@ -1784,8 +1972,19 @@ public class Perel_hw2Simulator {
 
 	/**
 	 * Method Name: memAllocSystemCall
-	 *
-	 * @return
+	 * 
+	 * Task Description: 
+	 *  Method takes a system call.
+	 *  
+	 * Input Parameters: None 
+	 * 
+	 * Output Parameters: 
+	 *  GPR0: return value code 
+	 *  GPR1: return value code 
+	 *  
+	 * Method Return Values: 
+	 *  @return ERROR_INVALID_MEMORY_SIZE: if invalid memory size is found 
+	 *  @return GPR[0]: returns value of CPU GPR index 0 
 	 */
 	public static long memAllocSystemCall() {
 		long size = gpr[2];
@@ -1818,8 +2017,18 @@ public class Perel_hw2Simulator {
 
 	/**
 	 * Method Name: memFreeSystemCall
+	 * 
+	 * Task Description: 
+	 *  Method takes a system call. 
+	 *  
+	 * Input Parameters: 
+	 *  None
 	 *
-	 * @return
+	 * Output Parameters: 
+	 *  None 
+	 * 
+	 * Method Return Values: 
+	 *  @return GPR[0]: return value code of GPR[0]
 	 */
 	public static long memFreeSystemCall() {
 		long size = gpr[2];
@@ -1839,8 +2048,18 @@ public class Perel_hw2Simulator {
 
 	/**
 	 * Method Name: io_getcSystemCall
+	 * 
+	 * Task Description: 
+	 *  Method takes a system call.
+	 *  
+	 * Input Parameters: 
+	 *  None 
+	 *  
+	 * Output Parameters: 
+	 *  None 
 	 *
-	 * @return
+	 * Method Return Values: 
+	 *  @return IO_GETCINTERRUPT: returns value in variable 
 	 */
 	public static long io_getcSystemCall() {
 		System.out.println("\nInput operation required, leaving CPU for input interrupt\n");
@@ -1851,8 +2070,18 @@ public class Perel_hw2Simulator {
 
 	/**
 	 * Method Name: io_putcSystemCall
+	 * 
+	 * Task Description: 
+	 *  Method takes a system call. 
 	 *
-	 * @return
+	 * Input Parameters:
+	 *  None 
+	 *  
+	 * Output Parameters: 
+	 *  None 
+	 *
+	 * method Return values;
+	 *  @return IO_PUTCINTERRUPT: returns value in variable 
 	 */
 	public static long io_putcSystemCall() {
 		System.out.println("\nOutput operation required, leaving CPU for output interrupt\n");
