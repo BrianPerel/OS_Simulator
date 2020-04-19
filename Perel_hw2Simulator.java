@@ -4,8 +4,9 @@ import java.io.FileNotFoundException;
 import java.io.FileReader;
 import java.io.IOException;
 import java.util.Scanner;
+
 /**
- * @author Brian Perel
+ * @authors Brian Perel, Jon Petani 
  * @version 1.0
  *
  * HW# 2
@@ -18,7 +19,7 @@ import java.util.Scanner;
  *  which runs a real-time multitasking operating system (MTOPS),
  *	designed for microcomputers. We will be using the hardware of
  *  the host machine to run the simulated OS. We are building a decimal machine rather than binary.
- *  All hardware is simulated.
+ *  All hardware is simulated. If the system reaches a halt that indicates successful execution of a process 
  *  Features covered in this project include:
  *  	-scheduling algorithms, memory management,
  *  	-process synchronization, interprocess communication, I/O management, timer management,
@@ -26,7 +27,7 @@ import java.util.Scanner;
  *  	-assembly language programming and hand assembly to machine language program,
  *  	-and an absolute loader.
  *
- *  User programs to test the hardware and operating system are written in assembly language first and then hand assembled into machine language.
+ *  User programs to test the hardware and operating system are written in assembly language first and then hand assembled into machine language using a symbol table that contains 2 columns for every row: column1 = name of label appearing in the label of field of assembly language instruction, column2 = address of instruction that has label.
  */
 public class Perel_hw2Simulator {
 
@@ -35,9 +36,13 @@ public class Perel_hw2Simulator {
 	static long mar, mbr, clock, IR, psr, pc, sp; // simulation of memory addresses
 	static long gpr[] = new long[8]; // simulation of general purpose registers, 0 to 7 (size 8)
 	
-	/* Class represents a process' program control block (PCB).
-	   PCB is located in HYPO machine's OS dynamic memory area. */
+	
+	/* PCB is located in HYPO machine's OS dynamic memory area. 
+	PCB is a data structure (array) used by OS to store all information about a process, 
+	information about process is updated during transition of process state (waiting to ready to running process states).
+	PCB is allocated from OS at process creation time. */ 
 	static long PCBarray[] = new long[22]; // index locations 0-21, size 22 
+	
 	// below are PCB variables that hold there associated array index values 
 	static int PCBptrIndex = 0; // PCB start address
 	static int nextPCBptrIndex = 1;
@@ -67,35 +72,35 @@ public class Perel_hw2Simulator {
 	final static long END_OF_PROGRAM = -1; // variable to indicate that end of machine program has been reached
 
 	final static long END_OF_LIST = -1; // variable to indicate that end of OS or User Free List has been encountered
-	static long RQ = END_OF_LIST; // ready queue is set to end of list
-	static long WQ = END_OF_LIST; // waiting queue is set to end of list
+	static long RQ = END_OF_LIST; // ready queue is set to end of list, ready queue is the list where processes that are ready to run are held 
+	static long WQ = END_OF_LIST; // waiting queue is set to end of list, waiting queue is the list where processes that are waiting to be run are held 
 	static long OSFreeList = END_OF_LIST; // set User Free List to empty list
 	static long UserFreeList = END_OF_LIST; // set User Free List to empty list
-	static long ProcessID = 1; // variable to hold the current process ID, incremented by 1 every time a new process is created
-	static long stackSize = 10;
-	static long OSMode = 1; // variable to set system mode to OS Mode
-	static long UserMode = 2; // variable to set system mode to User Mode
+	static long ProcessID = 1; // variable to hold the current process ID, incremented by 1 every time a new process is created. PID is a unique ID assigned to every process when it is created
+	static long stackSize = 10; // size of the memory stack 
+	static long OSMode = 1; // variable to set system mode to OS Mode, Mode 1 
+	static long UserMode = 2; // variable to set system mode to User Mode, Mode 2 
 	static boolean shutdown = false; // flag used to indicate the HYPO Machine should shutdown
 	final static long DEFAULT_PRIORITY = 128; // set default priority to middle value in priority range
-	final static long READY_STATE = 1; // variable to indicate CPU ready state
-	final static long WAITING_STATE = 2; // variable to indicate CPU waiting state
-	final static long RUNNING_STATE = 3; // variable to indicate CPU running state
-	final static long TIMESLICE = 200; // variable time slice is set to 200 clock ticks
+	final static long READY_STATE = 1; // variable to indicate process ready state. State transition 1 of process scheduling. 
+	final static long WAITING_STATE = 2; // variable to indicate process waiting state. State transition 2 of process scheduling. 
+	final static long RUNNING_STATE = 3; // variable to indicate process running state. State transition 3 of process scheduling. 
+	final static long TIMESLICE = 200; // variable time slice is set to 200 clock ticks, a time slice is the amount of time a process is allowed to run uninterrupted (CPU is only given a process for a fixed time)
 	final static long MAX_MEMORY_ADDRESS = 9999; // the highest user memory address you can use, 9999 because the memory array size is 10,000 
 	final static long HALT_IN_PROGRAM_REACHED = 1; // variable used to indicate the CPU() has reached a halt
 	final static long TIME_SLICE_EXPIRED = 2; // variable used to indicate that a time slice expiration point was reached
 	final static long START_ADDR_OF_OS_FREELIST = 3500; // variable to mark starting address of OS free list
-	final static long END_ADDR_OF_OS_FREELIST = 6998; 
+	final static long END_ADDR_OF_OS_FREELIST = 6998; // variable to hold end of OS free list address 
 	final static long START_ADDR_OF_USER_PROGRAM_AREA = 0; // variable to hold starting address of the user program area
 	final static long END_ADDR_OF_USER_PROGRAM_AREA = 3499; // variable to hold end address of user program area
 	final static long START_ADDR_OF_USER_FREELIST = 2500; // variable to mark start address of user free list
 	final static long END_ADDR_OF_USER_FREELIST = 4499; // variable to mark end address of user free list
 	final static long IO_GETCINTERRUPT = 3; // variable used when "input operation is completed" interrupt is encountered
 	final static long IO_PUTCINTERRUPT = 4; // variable used when "output operation is completed" interrupt is encountered
-	final static long PCB_SIZE = 22; // variable holds value which is number of indexes
+	final static long PCB_SIZE = 22; // variable holds value which is number of indexes in PCB array (size) 
 	
 	/* HYPO machine error codes, error codes are less than 0, check for errors at every step of OS execution */
-	final static long RUN_TIME_ERROR = -2;
+	final static long RUN_TIME_ERROR = -2; // error code to indicate run time error was encountered 
 	final static long ERROR_FILE_OPEN = -3; // error code to indicate file could not be opened
 	final static long ERROR_INVALID_ADDRESS = -4; // error code to indicate invalid address was given
 	final static long ERROR_NO_END_OF_PROGRAM = -5; // error code to indicate end of program could not be reached while reading a machine program in absolute loader
@@ -111,7 +116,7 @@ public class Perel_hw2Simulator {
 	final static long ERROR_INVALID_SIZE_OR_MEMORY_ADDRESS = -15; // error code to indicate invalid size or memory address encountered, outside of range
 	final static long ERROR_NO_AVAILABLE_MEMORY = -16; // error code to indicate no available memory left
 	final static long ERROR_REQUESTED_MEMORY_TOO_SMALL = -17; // error code to indicate requested (input) memory is too small
-	final static long ERROR_FILE_NOT_FOUND = -18;
+	final static long ERROR_FILE_NOT_FOUND = -18; // error code that file was not found error encountered 
 
 	static Scanner scan = new Scanner(System.in); // console input object instance
 
@@ -122,7 +127,8 @@ public class Perel_hw2Simulator {
 	 * Method Name: main
 	 * 
 	 * Method Description: 
-	 *   Initialize all hardware parts, OS free list and user free list. Start the OS, begin a null process.    
+	 *   Initialize all hardware parts, OS free list and user free list. Start the OS, begin a null process.  
+	 *   Enter OS environment by going to checkAndProcessInterrupt menu and servicing interrupts.  
 	 *
 	 * Input Parameters:
 	 *   @param args: command line arguments
@@ -147,15 +153,13 @@ public class Perel_hw2Simulator {
 
 		System.out.println("System Booting...");
 
-		long status; // variable to hold the statuses of CheckandProcessInterrupt and returning CPU values.
-
 		initializeSystem(); // initialize all OS hardware, reset memory when OS starts
 
 		System.out.println("\nStarting OS...");
 
-		// main loop of HYPO machine runs until shutdown
+		// main loop of HYPO machine runs until shutdown, enter OS environment 
 		while(!shutdown) {
-			status = checkAndProcessInterrupt(); // check and process interrupt			
+			long status = checkAndProcessInterrupt(); // check and process interrupt			
 
 			if(status == 2) break; // if interrupt is shutdown, terminate program
 
@@ -165,16 +169,16 @@ public class Perel_hw2Simulator {
 			System.out.println("\nWQ: Before CPU scheduling"); // dump the contents of WQ
 			printQueue(WQ);
 
-			dumpMemory("Dynamic memory area before CPU scheduling", 0, 99);
+			dumpMemory("Dynamic memory area before CPU scheduling", 0, 99); // print context of memory 
 
 			// select next process from RQ to give CPU
-			long PCBrunningptr = selectProcessFromRQ();
+			long PCBrunningptr = selectProcessFromRQ(); // select a process from ready queue
 
 			// perform restore context using dispatcher
 			dispatcher(PCBrunningptr);
-
+			
 			System.out.println("\nRQ: After selecting process from RQ"); // dump the contents of RQ
-			printQueue(RQ);
+			printQueue(RQ); // print context of queue containing all processes 
 
 			System.out.println("\nDumping the PCB contents of the running PCB"); // dump the contents of WQ
 			printPCB(PCBrunningptr);
@@ -199,13 +203,13 @@ public class Perel_hw2Simulator {
 			}
 			else if(status == io_getcSystemCall()) {
 				System.out.println("\nInput Interrupt detected");
-				hypoMainMemory[(int) PCBrunningptr /* + reasonForWaitingCode*/] = io_putcSystemCall(); //Set reason for waiting in the running PCB to Output Completion Event
+				hypoMainMemory[(int) (PCBrunningptr + reasonForWaitingCodeIndex)] = io_putcSystemCall(); //Set reason for waiting in the running PCB to Output Completion Event
 				insertIntoWQ(PCBrunningptr); // insert running process into WQ.
 				PCBrunningptr = END_OF_LIST; // set running PCB pointer to end of list
 			}
 			else if(status == io_putcSystemCall()) {
 				System.out.println("\nOutput interrupt detected");
-				hypoMainMemory[(int) PCBrunningptr /* + reasonForWaitingCode*/] = io_putcSystemCall(); //Set reason for waiting in the running PCB to Output Completion Event
+				hypoMainMemory[(int) (PCBrunningptr + reasonForWaitingCodeIndex)] = io_putcSystemCall(); //Set reason for waiting in the running PCB to Output Completion Event
 				insertIntoWQ(PCBrunningptr); // insert running process into WQ.
 				PCBrunningptr = END_OF_LIST; // set running PCB pointer to end of list
 			}
@@ -274,6 +278,7 @@ public class Perel_hw2Simulator {
 
 		System.out.print("Hardware units successfully initialized!");
 
+		// create a null process 
 		String filename = "Null.txt";
 		createProcess(filename, 0);
 	}
@@ -1002,7 +1007,7 @@ public class Perel_hw2Simulator {
 	 * Method Description: Method creates the process for the program, 
 	 *  prepares the PCB block (object), initializes all PCB contents to 
 	 *  proper values, defines stack space for the program and dumps user 
-	 *  program area memory locations 
+	 *  program area memory locations, loads program (process) from disk to memory  
 	 *
 	 * Input Parameters:
 	 *  filename: filename of machine file for which were creating a process
@@ -1017,7 +1022,7 @@ public class Perel_hw2Simulator {
 	 */
 	public static long createProcess(String filename, long priority) throws IOException {
 
-		// Allocate space for PCB
+		// Allocate stack space (memory) for PCB to create a process
 		long PCBptr = allocateOSMemory(PCB_SIZE); // change argument later, 0 gives error, 1 works
 
 		// check return value from allocateOSMemory(), if < 0 then error encountered
@@ -1027,7 +1032,7 @@ public class Perel_hw2Simulator {
 
 		initializePCB(PCBptr); // call initialize PCB pointer and set it to a variable (so we know which PCB we're working with)
 
-		// load the program
+		// load the program from disk to memory 
 		long value = absoluteLoader(filename);
 
 		if(value < 0) {
@@ -1070,7 +1075,7 @@ public class Perel_hw2Simulator {
 	 * Method Name: initializePCB
 	 *
 	 * Method Description: PCB (Process Control Block) is related to process - anything that calls create process will deal with PCB such as initializeSystem function
-	 *  Method is used to initialize a new PCB node. The new PCB will start at the specified address and have the specified PID.
+	 *  Method is used to initialize a new PCB node in which we set all its element variables. The new PCB will start at the specified address and have the specified PID.
 	 *  It's priority will be set to the default priority of 128 and all other values are initialized to value of 0.
 	 *
 	 * Input Parameters: 
@@ -1085,8 +1090,8 @@ public class Perel_hw2Simulator {
 	public static void initializePCB(long PCBptr) {
 
 		// initialize all PCB values to 0 
-		for(int i = 0; i < PCBarray.length; i++) {
-			PCBarray[i] = 0;
+		for(int i = 0; i < PCB_SIZE; i++) {
+			hypoMainMemory[(int) (PCBptr + i)] = 0;
 		}
 
 		// PID of value zero is invalid, since process id's value is going into PID method we check process id value
@@ -1094,11 +1099,10 @@ public class Perel_hw2Simulator {
 			System.out.println("Invalid PID given. Error code: " + ERROR_INVALID_ADDRESS);
 		}
 		
-		PCBarray[PIDIndex] = ProcessID++; // allocate PID and set it in the PCB
-
-		PCBarray[priorityIndex] = DEFAULT_PRIORITY; // set priority field in the PCB to default priority
-		PCBarray[stateIndex] = READY_STATE; // set state field in the PCB equal to ready state
-		PCBarray[nextPCBptrIndex] = END_OF_LIST; // set next PCB pointer field (next pointer in the list)  in the PCB to end of list
+		hypoMainMemory[(int) (PCBptr + PIDIndex)] = ProcessID++; // allocate PID and set it in the PCB
+		hypoMainMemory[(int) (PCBptr + priorityIndex)] = DEFAULT_PRIORITY; // set priority field in the PCB to default priority
+		hypoMainMemory[(int) (PCBptr + stateIndex)] = READY_STATE; // set state field in the PCB equal to ready state
+		hypoMainMemory[(int) (PCBptr + nextPCBptrIndex)] = END_OF_LIST; // set next PCB pointer field (next pointer in the list)  in the PCB to end of list
 	}
 
 
@@ -1269,7 +1273,7 @@ public class Perel_hw2Simulator {
 	 * Method Name: insertIntoWQ
 	 * 
 	 * Method Description: 
-	 *  Take PCBptr and insert it into front of waiting queue after 
+	 *  Take PCBptr and insert it into the front of waiting queue after 
 	 *  which we adjust the next pointer index value.
 	 *  
 	 * Input Parameters:
@@ -1703,7 +1707,7 @@ public class Perel_hw2Simulator {
 	 *
 	 * Method Description: 
 	 *  Read interrupt ID number. Based on the interrupt ID,
-	 *  service the interrupt by calling appropriate method using switch
+	 *  service the interrupt type by calling appropriate method using switch
 	 * 
 	 * Input Parameters: 
 	 *  None
@@ -1740,10 +1744,10 @@ public class Perel_hw2Simulator {
 			case 2: isrShutdownSystem(); // shutdown system
 					break;
 
-			case 3: isrInputCompletionInterrupt(); // input operation completion - io_getc
+			case 3: isrInputCompletionInterrupt(); // input operation completion - io_getc = ISR of interrupt reads 1 character from keyboard
 					break;
 
-			case 4: isrOutputCompletionInterrupt(); // output operation completion - io_putc
+			case 4: isrOutputCompletionInterrupt(); // output operation completion - io_putc = ISR of interrupt reads 1 character from keyboard 
 					break;
 
 			default: System.out.println("\nError: Invalid interrupt ID entered. Error code: " + ERROR_INVALID_ID); // invalid interrupt ID
