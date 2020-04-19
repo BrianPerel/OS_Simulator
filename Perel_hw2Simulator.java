@@ -3,7 +3,6 @@ import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileReader;
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Scanner;
 /**
  * @author Brian Perel
@@ -28,13 +27,6 @@ import java.util.Scanner;
  *  	-and an absolute loader.
  *
  *  User programs to test the hardware and operating system are written in assembly language first and then hand assembled into machine language.
- *
- *  HYPO machine program: 1. set all hardware to 0. 2. read executable machine language program from disk txt file (it is the converted assembly program),
- *  3. load from disk file into main memory (done by loader method, loader will stop loading after reading line with negative address),
- *  4. load the PC from the value returned by the absoluteLoader method,
- *  5. call CPU method to execute the program loaded into main memory (execute the loaded instructions),
- *  6. call dump memory method after loading the program and executing it (display the post-execution subset of memory data to console),
- *  Use main method to check all the method return values and take right action
  */
 public class Perel_hw2Simulator {
 
@@ -42,6 +34,33 @@ public class Perel_hw2Simulator {
 	static long hypoMainMemory[] = new long[10000]; // simulation of main memory array (RAM), size of memory is 10000 words
 	static long mar, mbr, clock, IR, psr, pc, sp; // simulation of memory addresses
 	static long gpr[] = new long[8]; // simulation of general purpose registers, 0 to 7 (size 8)
+	
+	/* Class represents a process' program control block (PCB).
+	   PCB is located in HYPO machine's OS dynamic memory area. */
+	static long PCBarray[] = new long[22]; // index locations 0-21, size 22 
+	// below are PCB variables that hold there associated array index values 
+	static int PCBptrIndex = 0; // PCB start address
+	static int nextPCBptrIndex = 1;
+	static int PIDIndex = 2;
+	static int stateIndex = 3;
+	static int reasonForWaitingCodeIndex = 4;
+	static int priorityIndex = 5;
+	static int stackStartAddressIndex = 6;
+	static int stackSizeIndex = 7;
+	static int messageQueueStartAddressIndex = 8;
+	static int messageQueueSizeIndex = 9;
+	static int numOfMessagesInQueueIndex = 10;
+	static int GPR0Index = 11;
+	static int GPR1Index = 12;
+	static int GPR2Index = 13;
+	static int GPR3Index = 14;
+	static int GPR4Index = 15;
+	static int GPR5Index = 16;
+	static int GPR6Index = 17;
+	static int GPR7Index = 18;
+	static int SPIndex = 19;
+	static int PCIndex = 20;
+	static int PSRIndex = 21;
 
 	final static long PROGRAM_HALTED = 1; // halt instruction code
 	final static long OK = 0; // status code for successful execution
@@ -53,27 +72,27 @@ public class Perel_hw2Simulator {
 	static long OSFreeList = END_OF_LIST; // set User Free List to empty list
 	static long UserFreeList = END_OF_LIST; // set User Free List to empty list
 	static long ProcessID = 1; // variable to hold the current process ID, incremented by 1 every time a new process is created
+	static long stackSize = 10;
 	static long OSMode = 1; // variable to set system mode to OS Mode
 	static long UserMode = 2; // variable to set system mode to User Mode
 	static boolean shutdown = false; // flag used to indicate the HYPO Machine should shutdown
-	static long ThisPCB; // PCB class instance to make a connection between main class and PCB class
 	final static long DEFAULT_PRIORITY = 128; // set default priority to middle value in priority range
 	final static long READY_STATE = 1; // variable to indicate CPU ready state
 	final static long WAITING_STATE = 2; // variable to indicate CPU waiting state
 	final static long RUNNING_STATE = 3; // variable to indicate CPU running state
 	final static long TIMESLICE = 200; // variable time slice is set to 200 clock ticks
-	final static long MAX_MEMORY_ADDRESS = 3499; // the highest memory address you can use
+	final static long MAX_MEMORY_ADDRESS = 9999; // the highest user memory address you can use, 9999 because the memory array size is 10,000 
 	final static long HALT_IN_PROGRAM_REACHED = 1; // variable used to indicate the CPU() has reached a halt
 	final static long TIME_SLICE_EXPIRED = 2; // variable used to indicate that a time slice expiration point was reached
-	final static long START_ADDR_OF_OS_FREELIST = 4500; // variable to mark starting address of OS free list
+	final static long START_ADDR_OF_OS_FREELIST = 3500; // variable to mark starting address of OS free list
+	final static long END_ADDR_OF_OS_FREELIST = 6998; 
 	final static long START_ADDR_OF_USER_PROGRAM_AREA = 0; // variable to hold starting address of the user program area
-	final static long END_ADDR_OF_USER_PROGRAM_AREA = 2499; // variable to hold end address of user program area
+	final static long END_ADDR_OF_USER_PROGRAM_AREA = 3499; // variable to hold end address of user program area
 	final static long START_ADDR_OF_USER_FREELIST = 2500; // variable to mark start address of user free list
 	final static long END_ADDR_OF_USER_FREELIST = 4499; // variable to mark end address of user free list
 	final static long IO_GETCINTERRUPT = 3; // variable used when "input operation is completed" interrupt is encountered
 	final static long IO_PUTCINTERRUPT = 4; // variable used when "output operation is completed" interrupt is encountered
-	final static long PCB_SIZE = 12; // Java allocates 12 bytes for every object so PCB size is set to 12
-	static long runningPCBptr = END_OF_LIST;
+	final static long PCB_SIZE = 22; // variable holds value which is number of indexes
 	
 	/* HYPO machine error codes, error codes are less than 0, check for errors at every step of OS execution */
 	final static long RUN_TIME_ERROR = -2;
@@ -92,22 +111,18 @@ public class Perel_hw2Simulator {
 	final static long ERROR_INVALID_SIZE_OR_MEMORY_ADDRESS = -15; // error code to indicate invalid size or memory address encountered, outside of range
 	final static long ERROR_NO_AVAILABLE_MEMORY = -16; // error code to indicate no available memory left
 	final static long ERROR_REQUESTED_MEMORY_TOO_SMALL = -17; // error code to indicate requested (input) memory is too small
+	final static long ERROR_FILE_NOT_FOUND = -18;
 
 	static Scanner scan = new Scanner(System.in); // console input object instance
-    static ArrayList<PCB> PCBs = new ArrayList<PCB>(); // declare array list with PCB class as the type, needed to store the PCBs. For every process we have a different PCB, so use array list to store them dynamically
+
 
 	/**
+	 * Brian Perel wrote this method 
+	 * 
 	 * Method Name: main
-	 *
-	 * Task Description:
-	 *   calls initializeSystem method,
-	 *   (1) reads name of exe file,
-	 *   (2) calls loader method to load exe program into main memory,
-	 *   (3) load pc from value returned by absoluteLoader method,
-	 *   (4) call executeProgram (CPU) method to execute program that was loaded
-	 *   into main memory, calls dumpMemory method after loading program
-	 *   and executing loaded program
-	 *   (5) checks the method return value from each method and takes appropriate action
+	 * 
+	 * Method Description: 
+	 *   Initialize all hardware parts, OS free list and user free list. Start the OS, begin a null process.    
 	 *
 	 * Input Parameters:
 	 *   @param args: command line arguments
@@ -140,8 +155,7 @@ public class Perel_hw2Simulator {
 
 		// main loop of HYPO machine runs until shutdown
 		while(!shutdown) {
-
-			status = checkAndProcessInterrupt(); // check and process interrupt
+			status = checkAndProcessInterrupt(); // check and process interrupt			
 
 			if(status == 2) break; // if interrupt is shutdown, terminate program
 
@@ -154,19 +168,17 @@ public class Perel_hw2Simulator {
 			dumpMemory("Dynamic memory area before CPU scheduling", 0, 99);
 
 			// select next process from RQ to give CPU
-			runningPCBptr = selectProcessFromRQ();
-
-			runningPCBptr = 0; /***************************************** TEMP SOLUTION, REMOVE WHEN READY *****************************************/
+			long PCBrunningptr = selectProcessFromRQ();
 
 			// perform restore context using dispatcher
-			dispatcher(runningPCBptr);
+			dispatcher(PCBrunningptr);
 
 			System.out.println("\nRQ: After selecting process from RQ"); // dump the contents of RQ
 			printQueue(RQ);
 
 			System.out.println("\nDumping the PCB contents of the running PCB"); // dump the contents of WQ
-			printPCB(runningPCBptr);
-
+			printPCB(PCBrunningptr);
+		
 			// execute instructions of the running process using the CPU
 			System.out.println("\n\nExecuting CPU...");
 			status = CPU();
@@ -176,26 +188,26 @@ public class Perel_hw2Simulator {
 
 			if(status == TIME_SLICE_EXPIRED) {
 				System.out.println("\nTime slice has expired, saving context and inserting back into RQ");
-				saveContext(runningPCBptr); // Save CPU Context of running process in its PCB, because the running process is losing control of the CPU.
-				insertIntoRQ(runningPCBptr); // Insert running process PCB into RQ.
-				runningPCBptr = END_OF_LIST; // Set the running PCB pointer to the end of list.
+				saveContext(PCBrunningptr); // Save CPU Context of running process in its PCB, because the running process is losing control of the CPU.
+				insertIntoRQ(PCBrunningptr); // Insert running process PCB into RQ.
+				PCBrunningptr = END_OF_LIST; // Set the running PCB pointer to the end of list.
 			}
 			else if(status == HALT_IN_PROGRAM_REACHED || status < 0) {
 				System.out.println("\nHalt in program reached, end of program");
-				terminateProcess(runningPCBptr);
-				runningPCBptr = END_OF_LIST;
+				terminateProcess(PCBrunningptr);
+				PCBrunningptr = END_OF_LIST;
 			}
 			else if(status == io_getcSystemCall()) {
 				System.out.println("\nInput Interrupt detected");
-				hypoMainMemory[(int) runningPCBptr /* + reasonForWaitingCode*/] = io_putcSystemCall(); //Set reason for waiting in the running PCB to Output Completion Event
-				insertIntoWQ(runningPCBptr); // insert running process into WQ.
-				runningPCBptr = END_OF_LIST; // set running PCB pointer to end of list
+				hypoMainMemory[(int) PCBrunningptr /* + reasonForWaitingCode*/] = io_putcSystemCall(); //Set reason for waiting in the running PCB to Output Completion Event
+				insertIntoWQ(PCBrunningptr); // insert running process into WQ.
+				PCBrunningptr = END_OF_LIST; // set running PCB pointer to end of list
 			}
 			else if(status == io_putcSystemCall()) {
 				System.out.println("\nOutput interrupt detected");
-				hypoMainMemory[(int) runningPCBptr /* + reasonForWaitingCode*/] = io_putcSystemCall(); //Set reason for waiting in the running PCB to Output Completion Event
-				insertIntoWQ(runningPCBptr); // insert running process into WQ.
-				runningPCBptr = END_OF_LIST; // set running PCB pointer to end of list
+				hypoMainMemory[(int) PCBrunningptr /* + reasonForWaitingCode*/] = io_putcSystemCall(); //Set reason for waiting in the running PCB to Output Completion Event
+				insertIntoWQ(PCBrunningptr); // insert running process into WQ.
+				PCBrunningptr = END_OF_LIST; // set running PCB pointer to end of list
 			}
 			else {
 				System.out.println("Unkown programming error detected");
@@ -208,9 +220,11 @@ public class Perel_hw2Simulator {
 
 
 	/**
+	 * Brian Perel wrote this method 
+	 * 
 	 * Method Name: initializeSystem
 	 *
-	 * Task Description:
+	 * Method Description:
 	 * 	 Set (initialize) all global system hardware components to 0
 	 * 	 Initializes all the HYPO hardware variables to 0 value.
 	 * 	 This simulates what happens when you power on your computer:
@@ -258,7 +272,7 @@ public class Perel_hw2Simulator {
 		hypoMainMemory[(int) (OSFreeList + 3499)] = END_OF_LIST; // 7999
 		hypoMainMemory[(int) (OSFreeList + 1)] = START_ADDR_OF_OS_FREELIST; // 3500
 
-		System.out.print("Hardware units successfully initialized.");
+		System.out.print("Hardware units successfully initialized!");
 
 		String filename = "Null.txt";
 		createProcess(filename, 0);
@@ -267,9 +281,11 @@ public class Perel_hw2Simulator {
 
 
 	/**
+	 * Brian Perel wrote this method 
+	 * 
 	 * Method Name: absoluteLoader
 	 *
-	 * Task Description:
+	 * Method Description:
 	 *   Open the file containing HYPO machine user program
 	 *   and load the content into HYPO machine memory,
 	 *   If successful load, return the PC value in end of
@@ -290,13 +306,13 @@ public class Perel_hw2Simulator {
 	 *   @return ErrorNoEndOfProgram: returns no end of program error code
 	 *   @return OK: returns successful load, valid PC value
 	 */
-	public static long absoluteLoader(String file) throws IOException {
-
-			File fileObj = new File(file); // create file object
-			BufferedReader br = new BufferedReader(new FileReader(fileObj)); // create bufferedReader object to read from file
+	public static long absoluteLoader(String file) throws IOException, FileNotFoundException {
+		
 			// load the program from given filename into HYPO main memory
 			try {
-
+				File fileObj = new File(file); // create file object
+				BufferedReader br = new BufferedReader(new FileReader(fileObj)); // create bufferedReader object to read from file
+				
 				// if user enters blank (hits enter) for input, print error
 				if(file.equals("")) {
 					br.close();
@@ -309,7 +325,7 @@ public class Perel_hw2Simulator {
 				long address = 0; // this variable will store Hypo machine address from file
 				long content = 0; // this variable will store memory content
 
-				// access table in file, each line is 1 record, use a delimeter (space) to assign first number in left column of record to address variable and then assign second number to second variable
+				// access table in file, each line is 1 record, use a delimiter (space) to assign first number in left column of record to address variable and then assign second number to second variable
 				// read 1 line of file at a time until null is detected (end of file)
 				while((st = br.readLine()) != null)  {
 					temp = st.split("\t", 2)[0]; // read from file and split string by the tab, whatever is before goes into variable (read first column of machine code file line)
@@ -319,6 +335,7 @@ public class Perel_hw2Simulator {
 
 					// -1 is not a register address, it is an indicator for end of program. Successful program execution should come to here
 					if(address == END_OF_PROGRAM) {
+						System.out.print("\nProgram Successfully Loaded!");
 				    	br.close();
 				    	return content;
 					}
@@ -337,16 +354,9 @@ public class Perel_hw2Simulator {
 
 			// file not found exception
 			catch(FileNotFoundException e) {
-				br.close();
+				System.out.println("\nError: coudn't open the file. Returning error code: " + ERROR_FILE_OPEN);
 				return ERROR_FILE_OPEN;
 			}
-			// file IO exception
-			catch(IOException e) {
-				br.close();
-				return ERROR_FILE_OPEN;
-			}
-
-			br.close();
 
 			// return error code if program reaches this point since end of program could not be detected
 			return ERROR_NO_END_OF_PROGRAM;
@@ -355,9 +365,11 @@ public class Perel_hw2Simulator {
 
 
 	/**
+	 * Brian Perel wrote this method 
+	 * 
 	 * Method Name: CPU
 	 *
-	 * Task Description:
+	 * Method Description:
 	 *   Method (executes program) performs fetch-decode-execute cycle for
 	 *   every given instruction. Simulates the CPU hardware of the OS.
 	 *   Performs all possible error checking such as invalid memory address
@@ -807,9 +819,11 @@ public class Perel_hw2Simulator {
 
 
 	/**
-	 * Method Name: FetchOperand
+	 * Brian Perel wrote this method 
+	 * 
+	 * Method Name: fetchOperand
 	 *
-	 * Task Description: take in operand mode to determine which case is to be executed
+	 * Method Description: take in operand mode to determine which case is to be executed
 	 *
 	 * Input Parameters:
 	 *   Op1Mode		Operand Mode value
@@ -909,9 +923,11 @@ public class Perel_hw2Simulator {
 
 
 	/**
-	 * Method Name: DumpMemory
+	 * Brian Perel wrote this method 
+	 * 
+	 * Method Name: dumpMemory
 	 *
-	 * Task Description:
+	 * Method Description:
 	 *  Displays the content of the Hypo machine GPRs, the clock,
 	 *  content of given memory locations, and the given string
 	 *
@@ -979,9 +995,11 @@ public class Perel_hw2Simulator {
 
 
 	/**
+	 * Brian Perel wrote this method 
+	 * 
 	 * Method Name: create process
 	 *
-	 * Task Description: Method creates the process for the program, 
+	 * Method Description: Method creates the process for the program, 
 	 *  prepares the PCB block (object), initializes all PCB contents to 
 	 *  proper values, defines stack space for the program and dumps user 
 	 *  program area memory locations 
@@ -1007,7 +1025,7 @@ public class Perel_hw2Simulator {
 			return PCBptr;
 		}
 
-		ThisPCB = initializePCB(PCBptr); // call initialize PCB pointer and set it to a variable (so we know which PCB we're working with)
+		initializePCB(PCBptr); // call initialize PCB pointer and set it to a variable (so we know which PCB we're working with)
 
 		// load the program
 		long value = absoluteLoader(filename);
@@ -1016,31 +1034,29 @@ public class Perel_hw2Simulator {
 			return value; // check for program loading error
 		}
 
-		PCBs.get((int) ThisPCB).setPC(value);  // store PC value in the PCB of the process
-
+		PCBarray[PCIndex] = value;
+		
 		// Allocate stack space from user free list, allocate user memory of size stack size
-		long ptr = allocateUserMemory(PCBs.get((int) ThisPCB).getStackSize());
+		long ptr = allocateUserMemory(stackSize);
 
 		// check for error
 		if(ptr < 0) {
 			// User memory allocation failed
-			freeOSMemory(ptr, value);
+			freeOSMemory(PCBptr, value);
 			return ptr;
 		}
 
-		long stackSize = PCBs.get((int) ThisPCB).getStackSize();
-
-		// set SP in the PCB = pointer + stack size
-		PCBs.get((int) ThisPCB).setSP(ptr + stackSize);
-		PCBs.get((int) ThisPCB).setStackStartAddress(ptr);
-		PCBs.get((int) ThisPCB).setStackSize(stackSize);
-
+		PCBarray[SPIndex] = ptr + stackSize;
+		PCBarray[stackStartAddressIndex] = ptr;
+		PCBarray[stackSizeIndex] = stackSize;
+		
 		// set priority in the PCB to priority
-		PCBs.get((int) ThisPCB).setPriority(DEFAULT_PRIORITY);
+		PCBarray[priorityIndex] = priority; 
 
 		dumpMemory("\nDumping memory addresses in user program area", 0, 99);
 
 		printPCB(PCBptr); // print PCB passing PCBptr
+		
 		insertIntoRQ(PCBptr); // insert PCB into ready queue passing PCBptr
 
 		return OK;
@@ -1049,10 +1065,12 @@ public class Perel_hw2Simulator {
 
 
 	/**
+	 * Brian Perel wrote this method 
+	 * 
 	 * Method Name: initializePCB
 	 *
-	 * Task Description: PCB (Process Control Block) is related to process - anything that calls create process will deal with PCB such as initializeSystem function
-	 *  make PCB an object (constructor). Method is used to initialize a new PCB node. The new PCB will start at the specified address and have the specified PID.
+	 * Method Description: PCB (Process Control Block) is related to process - anything that calls create process will deal with PCB such as initializeSystem function
+	 *  Method is used to initialize a new PCB node. The new PCB will start at the specified address and have the specified PID.
 	 *  It's priority will be set to the default priority of 128 and all other values are initialized to value of 0.
 	 *
 	 * Input Parameters: 
@@ -1064,37 +1082,33 @@ public class Perel_hw2Simulator {
 	 * Method Return Values: 
 	 *  None
 	 */
-	public static long initializePCB(long PCBptr) {
-		long[] PCB_GPR = new long[8]; // declare PCB GPR array
+	public static void initializePCB(long PCBptr) {
 
-		for(int i = 0; i < PCB_GPR.length; i++) {
-			PCB_GPR[i] = 0;
+		// initialize all PCB values to 0 
+		for(int i = 0; i < PCBarray.length; i++) {
+			PCBarray[i] = 0;
 		}
-
-		PCB thisPCB = new PCB(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, PCB_GPR, 0, 0, 0); // allocate OS memory for PCB (create an instance)
 
 		// PID of value zero is invalid, since process id's value is going into PID method we check process id value
 		if(ProcessID == 0) {
-			System.out.println(ERROR_INVALID_ADDRESS);
+			System.out.println("Invalid PID given. Error code: " + ERROR_INVALID_ADDRESS);
 		}
-		thisPCB.setPID(ProcessID++); // allocate PID and set it in the PCB
+		
+		PCBarray[PIDIndex] = ProcessID++; // allocate PID and set it in the PCB
 
-		thisPCB.setPriority(DEFAULT_PRIORITY); // set priority field in the PCB to default priority
-		thisPCB.setState(READY_STATE); // set state field in the PCB equal to ready state
-		thisPCB.setNextPCBPointer(END_OF_LIST); // set next PCB pointer field (next pointer in the list)  in the PCB to end of list
-
-		PCBs.add(thisPCB); // add current PCB to PCBs list (array list) for later use in methods
-
-		long PCBIndex = PCBs.indexOf(thisPCB); // create variable that will hold the index value of current PCB
-		return PCBIndex; // return PCBIndex to createProcess() when it calls initializePCB at beginning of method, assign this value to ThisPCB variable
+		PCBarray[priorityIndex] = DEFAULT_PRIORITY; // set priority field in the PCB to default priority
+		PCBarray[stateIndex] = READY_STATE; // set state field in the PCB equal to ready state
+		PCBarray[nextPCBptrIndex] = END_OF_LIST; // set next PCB pointer field (next pointer in the list)  in the PCB to end of list
 	}
 
 
 
 	/**
+	 * Jon Petani wrote this method 
+	 * 
 	 * Method Name: printPCB
 	 *
-	 * Task Description: 
+	 * Method Description: 
 	 *  Print values of all the fields in the PCB. This includes it's PID, state
 	 *  priority, SP, PC, size, next PCB pointer, GPR's, and stack address 
 	 *  
@@ -1108,30 +1122,45 @@ public class Perel_hw2Simulator {
 	 *  None 
 	 */
 	public static void printPCB(long PCBptr) {
-		System.out.println("\nContents of the PCB in memory:" +
-				"\nPCB address = " + PCBs.get((int) ThisPCB).getPCBptr() +
-				", Next PCB ptr = " + PCBs.get((int) ThisPCB).getNextPCBPointer() +
-				", PID = " + PCBs.get((int) ThisPCB).getPID() +
-				", State = " + PCBs.get((int) ThisPCB).getState() +
-				", PC = " + PCBs.get((int) ThisPCB).getPC() +
-				", SP = " + PCBs.get((int) ThisPCB).getSP() +
-				", Priority = " + PCBs.get((int) ThisPCB).getPriority() +
-				", Stack info: start address = " + PCBs.get((int) ThisPCB).getStackStartAddress() +
-				" , size = " + PCBs.get((int) ThisPCB).getStackSize());
+	
+		System.out.println("\nContents of the PCB in memory address: " + PCBptr +
+				"\nPCB address = " + PCBptr +
+				", Next PCB ptr = " + PCBarray[nextPCBptrIndex] +
+				", PID = " + PCBarray[PIDIndex] +
+				", Reason for waiting code = " + PCBarray[reasonForWaitingCodeIndex] + 
+				", State = " + PCBarray[stateIndex] +
+				",\nMessage queue start address = " + PCBarray[messageQueueStartAddressIndex] +
+				", Message queue size = " + PCBarray[messageQueueSizeIndex] +
+				", Number of messages in queue = " + PCBarray[numOfMessagesInQueueIndex] +  
+				",\nPSR = " + PCBarray[PSRIndex] + 
+				", PC = " + PCBarray[PCIndex] +
+				", SP = " + PCBarray[SPIndex] +
+				", Priority = " + PCBarray[priorityIndex] +
+				", Stack info: start address = " + PCBarray[stackStartAddressIndex] +
+				" , size = " + PCBarray[stackSizeIndex]);
 
 				// print 8 GPR values: GPRs = print 8 values of GPR 0 to GPR 7
 				System.out.print("GPRs:\t");
-				long[] gprArr = PCBs.get((int) ThisPCB).getGPR();
-				for(int x = 0; x < 8; x++)
-					System.out.print("GPR" + x + ": " + gprArr[x] + " ");
+				System.out.print("GPR0" + ": " + PCBarray[GPR0Index] + " ");
+				System.out.print("GPR1" + ": " + PCBarray[GPR1Index] + " ");
+				System.out.print("GPR2" + ": " + PCBarray[GPR2Index] + " ");
+				System.out.print("GPR3" + ": " + PCBarray[GPR3Index] + " ");
+				System.out.print("GPR4" + ": " + PCBarray[GPR4Index] + " ");
+				System.out.print("GPR5" + ": " + PCBarray[GPR5Index] + " ");
+				System.out.print("GPR6" + ": " + PCBarray[GPR6Index] + " ");
+				System.out.print("GPR7" + ": " + PCBarray[GPR7Index] + " ");
+
+				System.out.println();
 	}
 
 
 
 	/**
+	 * Jon Petani wrote this method 
+	 * 
 	 * Method Name: printQueue
 	 * 
-	 * Task Description: 
+	 * Method Description: 
 	 *  Walk through the queue from the given pointer until the end of list
 	 *
 	 * Input Parameters: 
@@ -1155,7 +1184,7 @@ public class Perel_hw2Simulator {
 		// walk through the queue
 		while(currentPCBptr != END_OF_LIST) {
 			printPCB(currentPCBptr);
-			currentPCBptr++;
+			currentPCBptr = hypoMainMemory[(int) (currentPCBptr + nextPCBptrIndex)];
 		}
 
 		return OK;
@@ -1164,6 +1193,8 @@ public class Perel_hw2Simulator {
 
 
 	/**
+	 * Jon Petani wrote this method 
+	 * 
 	 * Method Name: insertIntoRQ
 	 *
 	 * Description:
@@ -1193,11 +1224,8 @@ public class Perel_hw2Simulator {
 			return ERROR_INVALID_MEMORY_ADDRESS;
 		}
 
-		long stateIndex = PCBs.get((int) ThisPCB).getState();
-		hypoMainMemory[(int) (PCBptr + stateIndex)] = READY_STATE; // set state to ready state
-
-		long nextPCBPointerIndex = PCBs.get((int) ThisPCB).getNextPCBPointer();
-		hypoMainMemory[(int) (PCBptr + PCBs.get((int) ThisPCB).getNextPCBPointer())] = END_OF_LIST; // set next pointer to end of list
+		hypoMainMemory[(int) (PCBptr + stateIndex)] = READY_STATE; 
+		hypoMainMemory[(int) (PCBptr + nextPCBptrIndex)] = END_OF_LIST; 
 
 		// if RQ is empty
 		if(RQ == END_OF_LIST) {
@@ -1207,38 +1235,40 @@ public class Perel_hw2Simulator {
 
 		// Walk through RQ and find the place to insert. PCB will be inserted at the end of its priority
 		while(currentPtr != END_OF_LIST) {
-			if(hypoMainMemory[(int) (PCBptr + PCBs.get((int) ThisPCB).getPriority())] > hypoMainMemory[(int) (currentPtr +  PCBs.get((int) ThisPCB).getPriority())]) {
+			if(hypoMainMemory[(int) (PCBptr + priorityIndex)] > hypoMainMemory[(int) currentPtr + priorityIndex]) {
 				// found the place to insert
 				if(previousPtr == END_OF_LIST) {
 					// enter PCB in the front of the list as first entry
-					hypoMainMemory[(int) (PCBptr + nextPCBPointerIndex)] = RQ;
+					hypoMainMemory[(int) (PCBptr + nextPCBptrIndex)] = RQ;
 					RQ = PCBptr;
 					return OK;
 				}
 
 				// enter PCB in the middle of the list
-				hypoMainMemory[(int) (PCBptr + nextPCBPointerIndex)] = hypoMainMemory[(int) (previousPtr + nextPCBPointerIndex)];
-				hypoMainMemory[(int) (previousPtr + nextPCBPointerIndex)] = PCBptr;
+				hypoMainMemory[(int) (PCBptr + nextPCBptrIndex)] = hypoMainMemory[(int) (previousPtr + nextPCBptrIndex)];
+				hypoMainMemory[(int) (previousPtr + nextPCBptrIndex)] = PCBptr;
 				return OK;
 			}
 			else {  // PCB to be inserted has lower or equal priority to the current PCB in RQ
 				// go the the next PCB in RQ
 				previousPtr = currentPtr;
-				currentPtr = hypoMainMemory[(int) (currentPtr + nextPCBPointerIndex)];
+				currentPtr = hypoMainMemory[(int) (currentPtr + nextPCBptrIndex)];
 			}
 		}
 
 		// insert PCB at the end of the RQ
-		hypoMainMemory[(int) (previousPtr + nextPCBPointerIndex)] = PCBptr;
+		hypoMainMemory[(int) (previousPtr + nextPCBptrIndex)] = PCBptr;
 		return OK;
 	}
 
 
 
 	/**
+	 * Jon Petani wrote this method 
+	 * 
 	 * Method Name: insertIntoWQ
 	 * 
-	 * Task Description: 
+	 * Method Description: 
 	 *  Take PCBptr and insert it into front of waiting queue after 
 	 *  which we adjust the next pointer index value.
 	 *  
@@ -1259,9 +1289,8 @@ public class Perel_hw2Simulator {
 			return ERROR_INVALID_MEMORY_ADDRESS;
 		}
 
-		hypoMainMemory[(int) (PCBptr + PCBs.get((int) ThisPCB).getState())] = WAITING_STATE; // set state to ready state
-		hypoMainMemory[(int) (PCBptr + PCBs.get((int) ThisPCB).getNextPCBPointer())] = WQ; // set next pointer to end of list
-
+		hypoMainMemory[(int) (PCBptr + stateIndex)] = WAITING_STATE; // set state to ready state
+		hypoMainMemory[(int) (PCBptr + nextPCBptrIndex)] = WQ; // set next pointer to end of list
 		WQ = PCBptr;
 
 		return OK;
@@ -1270,9 +1299,11 @@ public class Perel_hw2Simulator {
 
 
 	/**
+	 * Jon Petani wrote this method 
+	 * 
 	 * Method Name: selectProcessFromRQ
 	 *
-	 * Task Description: 
+	 * Method Description: 
 	 *  Select first process from RQ to give CPU. When CPU has to be allocated to the next process in RQ, select the first process
 	 *  in the RQ and return the pointer to the PCB since processes in RQ are already ordered from highest to lowest priority
 	 *
@@ -1287,23 +1318,23 @@ public class Perel_hw2Simulator {
 	 */
 	public static long selectProcessFromRQ() {
 		long PCBptr = RQ; // first entry in RQ
-		//	PCBs.get((int) ThisPCB).setPCBptr(PCBptr); // update the PCBptr field in the class too with above value
 
 		if(RQ != END_OF_LIST) {
-			RQ = PCBs.get((int) ThisPCB).getNextPCBPointer(); // remove first PCB from RQ, set RQ to next PCB pointed by RQ
+			RQ = hypoMainMemory[(int) (RQ + nextPCBptrIndex)]; // remove first PCB from RQ, set RQ to next PCB pointed by RQ
 		}
 
-		PCBs.get((int) ThisPCB).setNextPCBPointer(END_OF_LIST); // set next point to END_OF_LIST in the PCB; set next PCB field in the given PCB to END_OF_LIST
-
+		hypoMainMemory[(int) (PCBptr + nextPCBptrIndex)] = END_OF_LIST; // set next point to END_OF_LIST in the PCB; set next PCB field in the given PCB to END_OF_LIST
 		return PCBptr;
 	}
 
 
 
 	/**
+	 * Brian Perel wrote this method 
+	 * 
 	 * Method Name: saveContext
 	 *
-	 * Task Description:
+	 * Method Description:
 	 *  Save CPU context into running process PCB.
 	 *  Running process is going to lose the CPU. Hence, its CPU context has to be
 	 *  saved in its PCB so that it can be restored when it gets the CPU at a later time.
@@ -1322,26 +1353,28 @@ public class Perel_hw2Simulator {
 	 */
 	public static void saveContext(long PCBptr) {
 		// copy all CPU GPRs, SP, PC, and PSR values into PCB using PCBptr
-
-		long[] PCBgpr = PCBs.get((int) ThisPCB).getGPR();
-
-		// create a temporary PCB GPR array and copy to it all values from CPU GPR array
-		for(int i = 0; i < 8; i++) {
-			PCBgpr[i] = gpr[i];
-			PCBs.get((int) PCBptr).setGPR(PCBgpr, gpr[i]);
-		}
-
-		PCBs.get((int) PCBptr).setSP(sp);
-		PCBs.get((int) PCBptr).setPC(pc);
-		PCBs.get((int) PCBptr).setPSR(psr);
+		hypoMainMemory[(int) (PCBptr + GPR0Index)] = gpr[0];
+		hypoMainMemory[(int) (PCBptr + GPR1Index)] = gpr[1];
+		hypoMainMemory[(int) (PCBptr + GPR2Index)] = gpr[2];
+		hypoMainMemory[(int) (PCBptr + GPR3Index)] = gpr[3];
+		hypoMainMemory[(int) (PCBptr + GPR4Index)] = gpr[4];
+		hypoMainMemory[(int) (PCBptr + GPR5Index)] = gpr[5];
+		hypoMainMemory[(int) (PCBptr + GPR6Index)] = gpr[6];
+		hypoMainMemory[(int) (PCBptr + GPR7Index)] = gpr[7];
+		
+		hypoMainMemory[(int) (PCBptr + SPIndex)] = sp;
+		hypoMainMemory[(int) (PCBptr + PCIndex)] = pc;
+		hypoMainMemory[(int) (PCBptr + PSRIndex)] = psr;
 	}
 
 
 
 	/**
+	 * Jon Petani wrote this method 
+	 * 
 	 * Method Name: dispatcher
 	 * 
-	 * Task Description: 
+	 * Method Description: 
 	 *  Take PCBptr and store its context to all hardware components. 
 	 *  Copy CPU GPR register values from given PCBptr into the CPU registers.
 	 *  Do the opposite operation of save context. 
@@ -1356,22 +1389,28 @@ public class Perel_hw2Simulator {
 	 *  None 
 	 */
 	public static void dispatcher(long PCBptr) {
-		long[] PCBgpr = PCBs.get((int) PCBptr).getGPR().clone(); // copy whole GPR array into a temporary GPR array, then use temporary array to place values into CPU GPR array. Used clone() to create a clone array of PCB GPR array
-		for(int i = 0; i < 8; i++) {
-			gpr[i] = PCBgpr[i];
-		}
-
-		sp = PCBs.get((int) PCBptr).getSP();
-		pc = PCBs.get((int) PCBptr).getPC();
-		psr = UserMode; // user mode is 2, set system mode to user mode
+		gpr[0] = hypoMainMemory[(int) (PCBptr + GPR0Index)];
+		gpr[1] = hypoMainMemory[(int) (PCBptr + GPR1Index)];
+		gpr[2] = hypoMainMemory[(int) (PCBptr + GPR2Index)];
+		gpr[3] = hypoMainMemory[(int) (PCBptr + GPR3Index)]; 
+		gpr[4] = hypoMainMemory[(int) (PCBptr + GPR4Index)];
+		gpr[5] = hypoMainMemory[(int) (PCBptr + GPR5Index)];
+		gpr[6] = hypoMainMemory[(int) (PCBptr + GPR6Index)];
+		gpr[7] = hypoMainMemory[(int) (PCBptr + GPR7Index)];
+		
+		sp = hypoMainMemory[(int) (PCBptr + SPIndex)];
+		pc = hypoMainMemory[(int) (PCBptr + PCIndex)];
+		psr = UserMode;
 	}
 
 
 
 	/**
+	 * Jon Petani wrote this method 
+	 * 
 	 * Method Name: terminateProcess
 	 * 
-	 * Task Description: 
+	 * Method Description: 
 	 *  Method terminates a process by freeing the stack and PCB memory 
 	 *  so that another process can have space. Return stack memory 
 	 *  using stack start address and stack size in the given PCB.
@@ -1387,8 +1426,8 @@ public class Perel_hw2Simulator {
 	 *  None 
 	 */
 	public static void terminateProcess(long PCBptr) {
-		freeUserMemory(hypoMainMemory[(int) (PCBptr + PCBs.get((int) PCBptr).getStackStartAddress())],
-				hypoMainMemory[(int) (PCBptr + PCBs.get((int) PCBptr).getStackSize())]);
+		freeUserMemory(hypoMainMemory[(int) (PCBptr + stackStartAddressIndex)],
+				hypoMainMemory[(int) (PCBptr + stackSizeIndex)]);
 
 		freeOSMemory(PCBptr, PCB_SIZE);
 	}
@@ -1396,9 +1435,11 @@ public class Perel_hw2Simulator {
 
 
 	/**
+	 * Jon Petani wrote this method 
+	 * 
 	 * Method Name: allocateOSMemory
 	 * 
-	 * Task Description: 
+	 * Method Description: 
 	 *  Method allocates (takes aside) a block of OS free memory to be used.
 	 *  
 	 * Input Parameters: 
@@ -1484,9 +1525,11 @@ public class Perel_hw2Simulator {
 
 
 	/**
+	 * Jon Petani wrote this method 
+	 * 
 	 * Method Name: freeOSMemory
 	 * 
-	 * Task Description: 
+	 * Method Description: 
 	 *  Method takes a memory location and memory size and tries to free 
 	 *  in OS free list.
 	 *
@@ -1529,9 +1572,11 @@ public class Perel_hw2Simulator {
 
 
 	/**
+	 * Jon Petani wrote this method  
+	 * 
 	 * Method Name: allocateUserMemory
 	 * 
-	 * Task Description: 
+	 * Method Description: 
 	 *  Method allocates a block of user memory to be used. 
 	 *
 	 * Input Parameters:
@@ -1606,9 +1651,11 @@ public class Perel_hw2Simulator {
 
 
 	/**
+	 * Brian Perel wrote this method 
+	 * 
 	 * Method Name: freeUserMemory
 	 * 
-	 * Task Description: 
+	 * Method Description: 
 	 *  Free user memory at pointer memory location with amount of size as given by size
 	 *
 	 * Input Parameters:
@@ -1650,9 +1697,11 @@ public class Perel_hw2Simulator {
 
 
 	/**
+	 * Jon Petani wrote this method 
+	 * 
 	 * Method Name: checkAndProcessInterrupt
 	 *
-	 * Task Description: 
+	 * Method Description: 
 	 *  Read interrupt ID number. Based on the interrupt ID,
 	 *  service the interrupt by calling appropriate method using switch
 	 * 
@@ -1706,9 +1755,11 @@ public class Perel_hw2Simulator {
 
 
 	/**
+	 * Brian Perel wrote this method 
+	 * 
 	 * Method Name: isrRunProgramInterrupt
 	 *
-	 * Task Description: 
+	 * Method Description: 
 	 *  Run program interrupt service routine (ISR).
 	 *  Read filename and create process
 	 *  
@@ -1727,7 +1778,7 @@ public class Perel_hw2Simulator {
 		// prompt and read filename
 		System.out.print("Enter name of program to run - machine language program (add .txt to the end): ");
 		String filename = scan.next();
-
+		
 		// create the process
 		createProcess(filename, DEFAULT_PRIORITY);
 	}
@@ -1735,9 +1786,11 @@ public class Perel_hw2Simulator {
 
 
 	/**
+	 * Brian Perel wrote this method 
+	 * 
 	 * Method Name: isrInputCompletionInterrupt
 	 * 
-	 * Task Description: 
+	 * Method Description: 
 	 *  Method services a 'input completion' request.
 	 *  By reading a PID entered by user, method searches the WQ for the PCB that 
 	 *  is a matched. This is input character is stored in GPR1. 
@@ -1761,11 +1814,8 @@ public class Perel_hw2Simulator {
 			System.out.println("Enter a character to store: ");
 			char inputCharacter = scan.next().charAt(0);
 			// store inputCharacter in the GPR[1] in the PCB
-			long[] GPRpcb = new long[1]; // temporary array created
-			GPRpcb[1] = inputCharacter; // type cast char to long
-			PCBs.get((int) ThisPCB).setGPR(GPRpcb, 1);
-
-			PCBs.get((int) ThisPCB).setState(READY_STATE);
+			hypoMainMemory[(int) (PCBptr + GPR1Index)] = inputCharacter;
+			hypoMainMemory[(int) (PCBptr + stateIndex)] = READY_STATE;
 			insertIntoRQ(PCBptr);
 		}
 	}
@@ -1773,9 +1823,11 @@ public class Perel_hw2Simulator {
 
 
 	/**
+	 * Brian Perel wrote this method 
+	 * 
 	 * Method Name: isrOutputCompletionInterrupt
 	 * 
-	 * Task Description: 
+	 * Method Description: 
 	 *  Method serves a 'input completion' request given by user. 
 	 *  It reads a PID entered by user, searches the WQ for the PCB that matches,
 	 *  and finally takes the input character and stores it in GPR1. 
@@ -1796,13 +1848,11 @@ public class Perel_hw2Simulator {
 		long PCBptr = searchAndRemovePCBFromWQ(PID);
 
 		if(PCBptr > 0) {
-			// get whole GPR array and store in temporary array
-			long[] PCBgpr = PCBs.get((int) ThisPCB).getGPR();
 			// then retrieve index 1 of GPR array and assign to variable
-			char outputCharacter = (char) PCBgpr[1];
+			char outputCharacter = (char) hypoMainMemory[(int) (PCBptr + GPR1Index)];
 
 			System.out.println("Character in the GPR in PCB: " + outputCharacter);
-			PCBs.get((int) ThisPCB).setState(READY_STATE); // set process state to ready in PCB
+			hypoMainMemory[(int) (PCBptr) + stateIndex] = READY_STATE;
 			insertIntoRQ(PCBptr);
 		}
 	}
@@ -1810,9 +1860,11 @@ public class Perel_hw2Simulator {
 
 
 	/**
+	 * Brian Perel wrote this method 
+	 * 
 	 * Method Name: isrShutdownSystem
 	 *
-	 * Task Description: 
+	 * Method Description: 
 	 *  terminate all processes in RQ and WQ and exit from the program.
 	 *  This is the only place that the operating system program should exit.
 	 *  
@@ -1831,7 +1883,7 @@ public class Perel_hw2Simulator {
 		long ptr = RQ; // set ptr to first PCB pointed by RQ
 
 		while(ptr != END_OF_LIST) {
-			RQ = ptr++; // RQ is set to next PCB using ptr
+			RQ = hypoMainMemory[(int) (ptr + nextPCBptrIndex)]; // RQ is set to next PCB using ptr
 			terminateProcess(ptr); // terminate process
 			ptr = RQ;
 		}
@@ -1840,7 +1892,7 @@ public class Perel_hw2Simulator {
 		ptr = WQ;
 
 		while(ptr != END_OF_LIST) {
-			WQ = ptr++; // RQ is set to next PCB using ptr
+			WQ = hypoMainMemory[(int) (ptr + nextPCBptrIndex)]; // RQ is set to next PCB using ptr
 			terminateProcess(ptr); // terminate process
 			ptr = WQ;
 		}
@@ -1849,9 +1901,11 @@ public class Perel_hw2Simulator {
 
 
 	/**
+	 * Brian Perel wrote this method 
+	 * 
 	 * Method Name: searchAndRemovePCBFromWQ
 	 *
-	 * Task Description: 
+	 * Method Description: 
 	 *  Search the WQ for the matching PID.
 	 *  When a match is found remove it from WQ and return PCB pointer.
 	 *  If no match is found, return invalid PID error code.
@@ -1872,24 +1926,24 @@ public class Perel_hw2Simulator {
 
 		// search WQ for a PCB that has the given PID, if a match is found, remove it from WQ and return the PCB pointer
 		while(currentPCBptr != END_OF_LIST) {
-			if(hypoMainMemory[(int) ((PCBs.get((int) ThisPCB).getPCBptr()) + PCBs.get((int) ThisPCB).getPID())] == PID) {
+			if(hypoMainMemory[(int) (currentPCBptr + PIDIndex)] == PID) {
 
 				if(previousPCBptr == END_OF_LIST) { // match found, remove from WQ
 					// first PCB
-					WQ = hypoMainMemory[(int) (currentPCBptr + PCBs.get((int) ThisPCB).getNextPCBPointer())];
+					WQ = hypoMainMemory[(int) (currentPCBptr + nextPCBptrIndex)];
 				}
 
 				else {
 					// not first PCB
-					hypoMainMemory[(int) (previousPCBptr +  PCBs.get((int) ThisPCB).getNextPCBPointer())] =
-							hypoMainMemory[(int) (previousPCBptr + PCBs.get((int) ThisPCB).getNextPCBPointer())];
+					hypoMainMemory[(int) (previousPCBptr + nextPCBptrIndex)] =
+							hypoMainMemory[(int) (previousPCBptr + nextPCBptrIndex)];
 				}
 
-				hypoMainMemory[(int) (currentPCBptr + PCBs.get((int) ThisPCB).getNextPCBPointer())] = END_OF_LIST;
+				hypoMainMemory[(int) (currentPCBptr + nextPCBptrIndex)] = END_OF_LIST;
 				return currentPCBptr;
 			}
 			previousPCBptr = currentPCBptr;
-			currentPCBptr = hypoMainMemory[(int) (currentPCBptr + PCBs.get((int) ThisPCB).getNextPCBPointer())];
+			currentPCBptr = hypoMainMemory[(int) (currentPCBptr + nextPCBptrIndex)];
 		}
 
 		// No matching PCB is found, display PID message and return end of list code
@@ -1900,9 +1954,11 @@ public class Perel_hw2Simulator {
 
 
 	/**
+	 * Jon Petani wrote this method 
+	 * 
 	 * Method Name: systemCall
 	 * 
-	 * Task Description: 
+	 * Method Description: 
 	 *  Method takes a system call ID as argument and runs command that is 
 	 *  associated to this specific system call ID. 
 	 *  
@@ -1971,9 +2027,11 @@ public class Perel_hw2Simulator {
 
 
 	/**
+	 * Jon Petani wrote this method 
+	 * 
 	 * Method Name: memAllocSystemCall
 	 * 
-	 * Task Description: 
+	 * Method Description: 
 	 *  Method takes a system call.
 	 *  
 	 * Input Parameters: None 
@@ -2016,9 +2074,11 @@ public class Perel_hw2Simulator {
 
 
 	/**
+	 * Jon Petani wrote this method 
+	 * 
 	 * Method Name: memFreeSystemCall
 	 * 
-	 * Task Description: 
+	 * Method Description: 
 	 *  Method takes a system call. 
 	 *  
 	 * Input Parameters: 
@@ -2047,9 +2107,11 @@ public class Perel_hw2Simulator {
 
 
 	/**
+	 * Brian Perel wrote this method 
+	 * 
 	 * Method Name: io_getcSystemCall
 	 * 
-	 * Task Description: 
+	 * Method Description: 
 	 *  Method takes a system call.
 	 *  
 	 * Input Parameters: 
@@ -2069,9 +2131,11 @@ public class Perel_hw2Simulator {
 
 
 	/**
+	 * Brian Perel wrote this method 
+	 * 
 	 * Method Name: io_putcSystemCall
 	 * 
-	 * Task Description: 
+	 * Method Description: 
 	 *  Method takes a system call. 
 	 *
 	 * Input Parameters:
@@ -2086,134 +2150,6 @@ public class Perel_hw2Simulator {
 	public static long io_putcSystemCall() {
 		System.out.println("\nOutput operation required, leaving CPU for output interrupt\n");
 		return IO_PUTCINTERRUPT;
-	}
-}
-
-
-
-
-/**
- * Class Name: PCB
- *
- * Description: Class to contain all information on PCB.
- * Class represents a process' program control block (PCB).
- * PCB is located in HYPO machine's OS dynamic memory area.
- *
- * */
-class PCB {
-
-	public long PCBptr; // PCB start address
-	public long nextPCBPointer;
-	public long PID;
-	public long state;
-	public long reasonForWaitingCode;
-	public long priority;
-	public long stackStartAddress;
-	public long stackSize;
-	public long messageQueueStartAddress;
-	public long messageQueueSize;
-	public long numOfMessagesInQueue;
-	public long GPR[] = new long[8];
-	public long SP;
-	public long PC;
-	public long PSR;
-
-	public PCB(long PCBptr, long nextPCBPointer, long PID, long state, long reasonForWaitingCode, long priority, long stackStartAddress, long stackSize, long messageQueueStartAddress, long messageQueueSize, long numOfMessagesInQueue, long[] GPR, long SP, long PC, long PSR) {
-		this.PCBptr = PCBptr;
-		this.nextPCBPointer = nextPCBPointer;
-		this.PID = PID;
-		this.state = state;
-		this.reasonForWaitingCode = reasonForWaitingCode;
-		this.priority = priority;
-		this.stackStartAddress = stackStartAddress;
-		this.stackSize = stackSize;
-		this.messageQueueStartAddress = messageQueueStartAddress;
-		this.messageQueueSize = messageQueueSize;
-		this.numOfMessagesInQueue = numOfMessagesInQueue;
-
-		for(int x = 0; x < GPR.length; x++)
-			this.GPR[x] = GPR[x];
-
-		this.SP = SP;
-		this.PC = PC;
-		this.PSR = PSR;
-	}
-
-	public long getPCBptr() {
-		return PCBptr;
-	}
-	public long getNextPCBPointer() {
-		return nextPCBPointer;
-	}
-	public long getPC() {
-		return PC;
-	}
-	public long getSP() {
-		return SP;
-	}
-	public long getPSR() {
-		return PSR;
-	}
-	public long getState() {
-		return state;
-	}
-	public long getStackSize() {
-		return stackSize;
-	}
-	public long getPID() {
-		return PID;
-	}
-	public long getPriority() {
-		return priority;
-	}
-	public long[] getGPR() {
-		return GPR;
-	}
-	public long getStackStartAddress() {
-		return stackStartAddress;
-	}
-
-	public void setPC(long PC) {
-		this.PC = PC;
-	}
-	public void setSP(long SP) {
-		this.SP = SP;
-	}
-	public void setPID(long PID) {
-		this.PID = PID;
-	}
-	public void setStackStartAddress(long stackStartAddress) {
-		this.stackStartAddress = stackStartAddress;
-	}
-	public void setPriority(long priority) {
-		this.priority = priority;
-	}
-	public void setState(long state) {
-		this.state = state;
-	}
-	public void setNextPCBPointer(long nextPCBPointer) {
-		this.nextPCBPointer = nextPCBPointer;
-	}
-	public void setReasonForWaitingCode(long reasonForWaitingCode) {
-		this.reasonForWaitingCode = reasonForWaitingCode;
-	}
-	public void setStackSize(long stackSize) {
-		this.stackSize = stackSize;
-	}
-	public void setMessageQueueStartAddress(long messageQueueStartAddress) {
-		this.messageQueueStartAddress = messageQueueStartAddress;
-	}
-	public void setNumOfMessagesInQueue(long numOfMessagesInQueue) {
-		this.numOfMessagesInQueue = numOfMessagesInQueue;
-	}
-	public void setGPR(long[] GPR, long GPRIndex) {
-		this.GPR[(int) GPRIndex] = GPR[(int) GPRIndex]; // set individual array index address, passing in array (containing values) and index address
-	}
-	public void setPSR(long PSR) {
-		this.PSR = PSR;
-	}
-	public void setPCBptr(long PCBptr) {
-		this.PCBptr = PCBptr;
 	}
 }
 
