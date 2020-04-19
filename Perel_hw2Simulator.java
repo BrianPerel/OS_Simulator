@@ -36,12 +36,11 @@ public class Perel_hw2Simulator {
 	static long mar, mbr, clock, IR, psr, pc, sp; // simulation of memory addresses
 	static long gpr[] = new long[8]; // simulation of general purpose registers, 0 to 7 (size 8)
 	
-	
 	/* PCB is located in HYPO machine's OS dynamic memory area. 
 	PCB is a data structure (array) used by OS to store all information about a process, 
 	information about process is updated during transition of process state (waiting to ready to running process states).
 	PCB is allocated from OS at process creation time. */ 
-	static long PCBarray[] = new long[22]; // index locations 0-21, size 22 
+//	static long PCBarray[] = new long[22]; // index locations 0-21, size 22 
 	
 	// below are PCB variables that hold there associated array index values 
 	static int PCBptrIndex = 0; // PCB start address
@@ -268,13 +267,13 @@ public class Perel_hw2Simulator {
 
 		// create user free list using the free block address and size
 		UserFreeList = START_ADDR_OF_USER_FREELIST; // set user free list to 2500
-		hypoMainMemory[(int) (UserFreeList + 3499)] = END_OF_LIST;
+		hypoMainMemory[(int) (UserFreeList + nextPCBptrIndex)] = END_OF_LIST;
 		hypoMainMemory[(int) (UserFreeList + 1)] = START_ADDR_OF_USER_FREELIST;
 
 		// create OS free list using the free block address and size
 		OSFreeList = START_ADDR_OF_OS_FREELIST;
-		hypoMainMemory[(int) (OSFreeList + 3499)] = END_OF_LIST; // 7999
-		hypoMainMemory[(int) (OSFreeList + 1)] = START_ADDR_OF_OS_FREELIST; // 3500
+		hypoMainMemory[(int) (OSFreeList + nextPCBptrIndex)] = END_OF_LIST; 
+		hypoMainMemory[(int) (OSFreeList + 1)] = START_ADDR_OF_OS_FREELIST; 
 
 		System.out.print("Hardware units successfully initialized!");
 
@@ -794,13 +793,22 @@ public class Perel_hw2Simulator {
 				}
 
 				case 12: { // system call instruction
-
 					// check if PC value is in invalid range
 					if(pc <= 0 && pc >= 2499) {
 						System.out.println("Error invalid PC value encountered. Returning error code: " + ERROR_INVALID_PC_VALUE);
 						return ERROR_INVALID_PC_VALUE;
 					}
+					
+					recieve = fetchOperand(Op1Mode, Op1GPR);
+					Op1Value = recieve.getOpValue();
+					Op1Address = recieve.getOpAddress();
+					status = recieve.getStat();
 
+					if(!(status > 0))  {
+						System.out.println(status);
+						return ERROR_INVALID_ADDRESS;
+					}					
+					
 					long systemCallID = hypoMainMemory[(int) pc++];
 
 					status = systemCall(Op1Value);
@@ -1039,7 +1047,7 @@ public class Perel_hw2Simulator {
 			return value; // check for program loading error
 		}
 
-		PCBarray[PCIndex] = value;
+		hypoMainMemory[(int) (PCBptr + PCIndex)] = value;
 		
 		// Allocate stack space from user free list, allocate user memory of size stack size
 		long ptr = allocateUserMemory(stackSize);
@@ -1051,12 +1059,12 @@ public class Perel_hw2Simulator {
 			return ptr;
 		}
 
-		PCBarray[SPIndex] = ptr + stackSize;
-		PCBarray[stackStartAddressIndex] = ptr;
-		PCBarray[stackSizeIndex] = stackSize;
+		hypoMainMemory[SPIndex] = ptr + stackSize;
+		hypoMainMemory[stackStartAddressIndex] = ptr;
+		hypoMainMemory[stackSizeIndex] = stackSize;
 		
 		// set priority in the PCB to priority
-		PCBarray[priorityIndex] = priority; 
+		hypoMainMemory[priorityIndex] = priority; 
 
 		dumpMemory("\nDumping memory addresses in user program area", 0, 99);
 
@@ -1129,30 +1137,30 @@ public class Perel_hw2Simulator {
 	
 		System.out.println("\nContents of the PCB in memory address: " + PCBptr +
 				"\nPCB address = " + PCBptr +
-				", Next PCB ptr = " + PCBarray[nextPCBptrIndex] +
-				", PID = " + PCBarray[PIDIndex] +
-				", Reason for waiting code = " + PCBarray[reasonForWaitingCodeIndex] + 
-				", State = " + PCBarray[stateIndex] +
-				",\nMessage queue start address = " + PCBarray[messageQueueStartAddressIndex] +
-				", Message queue size = " + PCBarray[messageQueueSizeIndex] +
-				", Number of messages in queue = " + PCBarray[numOfMessagesInQueueIndex] +  
-				",\nPSR = " + PCBarray[PSRIndex] + 
-				", PC = " + PCBarray[PCIndex] +
-				", SP = " + PCBarray[SPIndex] +
-				", Priority = " + PCBarray[priorityIndex] +
-				", Stack info: start address = " + PCBarray[stackStartAddressIndex] +
-				" , size = " + PCBarray[stackSizeIndex]);
+				", Next PCB ptr = " + hypoMainMemory[(int) (PCBptr + nextPCBptrIndex)] +
+				", PID = " + hypoMainMemory[(int) (PCBptr + PIDIndex)] +
+				", Reason for waiting code = " + hypoMainMemory[(int) (PCBptr + reasonForWaitingCodeIndex)] + 
+				", State = " + hypoMainMemory[(int) (PCBptr + stateIndex)] +
+				",\nMessage queue start address = " + hypoMainMemory[(int) (PCBptr + messageQueueStartAddressIndex)] +
+				", Message queue size = " + hypoMainMemory[(int) (PCBptr + messageQueueSizeIndex)] +
+				", Number of messages in queue = " + hypoMainMemory[(int) (PCBptr + numOfMessagesInQueueIndex)] +  
+				",\nPSR = " + hypoMainMemory[(int) (PCBptr + PSRIndex)] + 
+				", PC = " + hypoMainMemory[(int) (PCBptr + PCIndex)] +
+				", SP = " + hypoMainMemory[(int) (PCBptr + SPIndex)] +
+				", Priority = " + hypoMainMemory[(int) (PCBptr + priorityIndex)] +
+				", Stack info: start address = " + hypoMainMemory[(int) (PCBptr + stackStartAddressIndex)] +
+				" , size = " + hypoMainMemory[(int) (PCBptr + stackSizeIndex)]);
 
 				// print 8 GPR values: GPRs = print 8 values of GPR 0 to GPR 7
 				System.out.print("GPRs:\t");
-				System.out.print("GPR0" + ": " + PCBarray[GPR0Index] + " ");
-				System.out.print("GPR1" + ": " + PCBarray[GPR1Index] + " ");
-				System.out.print("GPR2" + ": " + PCBarray[GPR2Index] + " ");
-				System.out.print("GPR3" + ": " + PCBarray[GPR3Index] + " ");
-				System.out.print("GPR4" + ": " + PCBarray[GPR4Index] + " ");
-				System.out.print("GPR5" + ": " + PCBarray[GPR5Index] + " ");
-				System.out.print("GPR6" + ": " + PCBarray[GPR6Index] + " ");
-				System.out.print("GPR7" + ": " + PCBarray[GPR7Index] + " ");
+				System.out.print("GPR0" + ": " + hypoMainMemory[(int) (PCBptr + GPR0Index)] + " ");
+				System.out.print("GPR1" + ": " + hypoMainMemory[(int) (PCBptr + GPR1Index)] + " ");
+				System.out.print("GPR2" + ": " + hypoMainMemory[(int) (PCBptr + GPR2Index)] + " ");
+				System.out.print("GPR3" + ": " + hypoMainMemory[(int) (PCBptr + GPR3Index)] + " ");
+				System.out.print("GPR4" + ": " + hypoMainMemory[(int) (PCBptr + GPR4Index)] + " ");
+				System.out.print("GPR5" + ": " + hypoMainMemory[(int) (PCBptr + GPR5Index)] + " ");
+				System.out.print("GPR6" + ": " + hypoMainMemory[(int) (PCBptr + GPR6Index)] + " ");
+				System.out.print("GPR7" + ": " + hypoMainMemory[(int) (PCBptr + GPR7Index)] + " ");
 
 				System.out.println();
 	}
@@ -1219,6 +1227,7 @@ public class Perel_hw2Simulator {
 	 *  @return OK: success code, if PCB was inserted 
 	 */
 	public static long insertIntoRQ(long PCBptr) {
+		
 		long previousPtr = END_OF_LIST;
 		long currentPtr = RQ;
 
@@ -1561,7 +1570,7 @@ public class Perel_hw2Simulator {
 			size = 2; // minimum allocated size
 		}
 
-		else if(size < 1 || (ptr + size) >= MAX_MEMORY_ADDRESS) {
+		else if(size < 1 || ((ptr + size) >= MAX_MEMORY_ADDRESS)) {
 			System.out.println("\nError: Invalid memory size. Returning error code: " + ERROR_INVALID_SIZE_OR_MEMORY_ADDRESS);
 			return ERROR_INVALID_SIZE_OR_MEMORY_ADDRESS;
 		}
@@ -1686,7 +1695,7 @@ public class Perel_hw2Simulator {
 		if(size == 1) {
 			size = 2; // minimum allocated size
 		}
-		else if(size < 1 || (ptr + size) >= MAX_MEMORY_ADDRESS) {
+		else if(size < 1 || ((ptr + size) >= MAX_MEMORY_ADDRESS)) {
 			System.out.println("Error: Invalid memory address, memory address given is outside memory address range. Returning error code: " + ERROR_INVALID_SIZE_OR_MEMORY_ADDRESS);
 			return ERROR_INVALID_SIZE_OR_MEMORY_ADDRESS;
 		}
@@ -1730,6 +1739,7 @@ public class Perel_hw2Simulator {
 							+ "\n***********************************************");
 
 		System.out.print("Please choose an interrupt number: ");
+		
 		// read interrupt ID
 		int interruptID = scan.nextInt();
 		System.out.println("Interrupt ID entered: " + interruptID);
@@ -1812,7 +1822,7 @@ public class Perel_hw2Simulator {
 		System.out.print("\nEnter PID of the process completing input completion interrupt: ");
 		int PID = scan.nextInt();
 
-		long PCBptr = searchAndRemovePCBFromWQ(PID); // search WQ to find the PCB having the given PID
+		long PCBptr = searchAndRemovePCBFromWQ(PID); // search WQ to find the PCB having the given PID, then remove it 
 
 		if(PCBptr > 0) {
 			System.out.println("Enter a character to store: ");
@@ -1856,7 +1866,7 @@ public class Perel_hw2Simulator {
 			char outputCharacter = (char) hypoMainMemory[(int) (PCBptr + GPR1Index)];
 
 			System.out.println("Character in the GPR in PCB: " + outputCharacter);
-			hypoMainMemory[(int) (PCBptr) + stateIndex] = READY_STATE;
+			hypoMainMemory[(int) (PCBptr + stateIndex)] = READY_STATE;
 			insertIntoRQ(PCBptr);
 		}
 	}
@@ -1981,46 +1991,45 @@ public class Perel_hw2Simulator {
 		long status = OK;
 
 		switch((int) systemCallID) {
-
-		// create process = user process is creating a child process
-		case 1: System.out.println("Create process system call not implemented");
-				break;
-
-		// delete process
-		case 2: System.out.println("Delete process system call not implemented");
-				break;
-
-		// process inquiry
-		case 3: System.out.println("Process inquery system call not implemented");
-				break;
-
-		// dynamic memory allocation: allocate user free memory system call
-		case 4: status = memAllocSystemCall();
-				break;
-
-		// free dynamically allocated user memory system call
-		case 5: status = memFreeSystemCall();
-				break;
-
-		// message send
-		case 6: System.out.println("Message send system call not implemented");
-				break;
-
-		// message receive
-		case 7: System.out.println("Message receive system call not implemented");
-				break;
-
-		// IO_getC - input a single character
-		case 8: status = io_getcSystemCall();
-				break;
-
-		// IO_getC - output a single character
-		case 9: status = io_getcSystemCall();
-				break;
-
-		// invalid system call ID
-		default: System.out.println("Invalid system call ID error");
-				 break;
+			// create process = user process is creating a child process
+			case 1: System.out.println("Create process system call not implemented");
+					break;
+	
+			// delete process
+			case 2: System.out.println("Delete process system call not implemented");
+					break;
+	
+			// process inquiry
+			case 3: System.out.println("Process inquery system call not implemented");
+					break;
+	
+			// dynamic memory allocation: allocate user free memory system call
+			case 4: status = memAllocSystemCall();
+					break;
+	
+			// free dynamically allocated user memory system call
+			case 5: status = memFreeSystemCall();
+					break;
+	
+			// message send
+			case 6: System.out.println("Message send system call not implemented");
+					break;
+	
+			// message receive
+			case 7: System.out.println("Message receive system call not implemented");
+					break;
+	
+			// IO_getC - input a single character
+			case 8: status = io_getcSystemCall();
+					break;
+	
+			// IO_getC - output a single character
+			case 9: status = io_putcSystemCall();
+					break;
+	
+			// invalid system call ID
+			default: System.out.println("Invalid system call ID error");
+					break;
 		}
 
 		psr = UserMode;
@@ -2052,7 +2061,7 @@ public class Perel_hw2Simulator {
 		long size = gpr[2];
 
 		// check for size out of range
-		if(size < 1) {
+		if(size < 1 || size > START_ADDR_OF_USER_FREELIST) {
 			System.out.println("The size of requested memory to be freed is out of range");
 			return ERROR_INVALID_MEMORY_SIZE;
 		}
@@ -2096,6 +2105,12 @@ public class Perel_hw2Simulator {
 	 */
 	public static long memFreeSystemCall() {
 		long size = gpr[2];
+		
+		// check for size out of range
+		if(size < 1 || size > START_ADDR_OF_USER_FREELIST) {
+			System.out.println("The size of requested memory to be freed is out of range");
+			return ERROR_INVALID_MEMORY_SIZE;
+		}
 
 		// check size of 1 and change it to 2
 		if(size == 1) {
@@ -2152,7 +2167,7 @@ public class Perel_hw2Simulator {
 	 *  @return IO_PUTCINTERRUPT: returns value in variable 
 	 */
 	public static long io_putcSystemCall() {
-		System.out.println("\nOutput operation required, leaving CPU for output interrupt\n");
+		System.out.println("Output operation required, leaving CPU for output interrupt\n");
 		return IO_PUTCINTERRUPT;
 	}
 }
