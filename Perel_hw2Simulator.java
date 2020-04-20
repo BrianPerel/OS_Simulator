@@ -37,10 +37,9 @@ public class Perel_hw2Simulator {
 	static long gpr[] = new long[8]; // simulation of general purpose registers, 0 to 7 (size 8)
 	
 	/* PCB is located in HYPO machine's OS dynamic memory area. 
-	PCB is a data structure (array) used by OS to store all information about a process, 
+	PCB is a data structure used by OS to store all information about a process, 
 	information about process is updated during transition of process state (waiting to ready to running process states).
-	PCB is allocated from OS at process creation time. */ 
-//	static long PCBarray[] = new long[22]; // index locations 0-21, size 22 
+	PCB is allocated from OS at process creation time. PCB size is 22, locations 0-21. */ 
 	
 	// below are PCB variables that hold there associated array index values 
 	static int PCBptrIndex = 0; // PCB start address
@@ -278,7 +277,7 @@ public class Perel_hw2Simulator {
 		System.out.print("Hardware units successfully initialized!");
 
 		// create a null process 
-		String filename = "Null.txt";
+		String filename = "Perel-hw2MachineProgram1.txt";
 		createProcess(filename, 0);
 	}
 
