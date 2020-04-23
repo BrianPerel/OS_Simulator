@@ -756,6 +756,7 @@ public class Perel_hw2Simulator {
 				case 10: { // push instruction
 					recieve = fetchOperand(Op1Mode, Op1GPR);
 					Op1Value = recieve.getOpValue();
+					System.out.println("Value " + Op1Value + " is being pushed to the stack");
 					Op1Address = recieve.getOpAddress();
 					status = recieve.getStat();
 
@@ -775,6 +776,7 @@ public class Perel_hw2Simulator {
 				case 11: { // pop instruction
 					recieve = fetchOperand(Op1Mode, Op1GPR);
 					Op1Value = recieve.getOpValue();
+					System.out.println("Value " + Op1Value + " is being popped from the stack");
 					Op1Address = recieve.getOpAddress();
 					status = recieve.getStat();
 
@@ -1058,12 +1060,12 @@ public class Perel_hw2Simulator {
 			return ptr;
 		}
 
-		hypoMainMemory[SPIndex] = ptr + stackSize;
-		hypoMainMemory[stackStartAddressIndex] = ptr;
-		hypoMainMemory[stackSizeIndex] = stackSize;
+		hypoMainMemory[(int) (PCBptr + SPIndex)] = ptr + stackSize;
+		hypoMainMemory[(int) (PCBptr + stackStartAddressIndex)] = ptr;
+		hypoMainMemory[(int) (PCBptr + stackSizeIndex)] = stackSize;
 		
 		// set priority in the PCB to priority
-		hypoMainMemory[priorityIndex] = priority; 
+		hypoMainMemory[(int) (PCBptr + priorityIndex)] = priority; 
 
 		dumpMemory("\nDumping memory addresses in user program area", 0, 99);
 
@@ -2142,7 +2144,6 @@ public class Perel_hw2Simulator {
 	 *  @return IO_GETCINTERRUPT: returns value in variable 
 	 */
 	public static long io_getcSystemCall() {
-		System.out.println("\nInput operation required, leaving CPU for input interrupt\n");
 		return IO_GETCINTERRUPT;
 	}
 
@@ -2166,7 +2167,6 @@ public class Perel_hw2Simulator {
 	 *  @return IO_PUTCINTERRUPT: returns value in variable 
 	 */
 	public static long io_putcSystemCall() {
-		System.out.println("Output operation required, leaving CPU for output interrupt\n");
 		return IO_PUTCINTERRUPT;
 	}
 }
