@@ -15,7 +15,7 @@ import java.util.Scanner;
  * HYPO Project for OSI course CSCI 465
  *
  * Purpose:
- *	This program will simulate a hypothetical decimal machine
+ *	This program will simulate a hypothetical decimal (2 address) machine
  *  which runs a real-time multitasking operating system (MTOPS),
  *	designed for microcomputers. We will be using the hardware of
  *  the host machine to run the simulated OS. We are building a decimal machine rather than binary.
@@ -27,7 +27,34 @@ import java.util.Scanner;
  *  	-assembly language programming and hand assembly to machine language program,
  *  	-and an absolute loader.
  *
- *  User programs to test the hardware and operating system are written in assembly language first and then hand assembled into machine language using a symbol table that contains 2 columns for every row: column1 = name of label appearing in the label of field of assembly language instruction, column2 = address of instruction that has label.
+ *  User programs to test the hardware and operating system are written in assembly language first and then hand assembled
+ *  into machine language using a symbol table that contains 2 columns for every row: column1 = name of label appearing 
+ *  in the label of field of assembly language instruction, column2 = address of instruction that has label.
+ *  
+ *  This machine could be simulated on any computer 
+ *  
+ *  Computer memory and CPU registers = Memory Address Register (MAR) -> contains address of the memory location to be accessed, 
+ *  Memory Buffer Register (MBR) -> contains the value of the location to be read or written , 
+ *	Random Access Memory (RAM) -> Main Memory, 
+ *  Instruction Register (IR) -> The instruction decoder is attached to the IR register to identify (decode) the instruction 
+ *  	that has been fetched during fetch cycle of an instruction execution, 
+ *  Stack Pointer (SP) -> contains content of memory address in the stack, it points to the top of the stack,
+ *  Program Counter (PC) -> contains address of the instruction memory location (address) to be fetched,
+ *  General Purpose Register (GPR),
+ *  Processor Status Register (PSR),
+ *  Arithmetic Logic Unit (ALU),
+ *  Clock -> System clock in microseconds 
+ *  
+ *  We will first write a HYPO machine simulation, then use the HYPO's hardware to write and run the MTOPS machine on it. 
+ *  Essentially MTOPS will manage HYPO's hardware. Without the hardware there is no task for the OS and hence there is no need for the OS.
+ *  We will simulate the hardware components by software rather than by building the hardware.
+ *  
+ *  The OS will implement 1. memory allocation and free system calls, 2.character-oriented input and output system calls, 
+ *  3. processes creation and termination, 4. stack operations (push and pop), 5. create a null system process to run when there
+ *  is no other process in the ready queue, 6. process scheduling using priority round robin algorithm, 7. maintain user mode and OS mode in
+ *  the PSR, 8. handle user commands and resulting interrupt handling, 9. handling of system interrupts, 10. display of context in ready queue,
+ *  waiting queue, and PCB.   
+ *  
  */
 public class Perel_hw2Simulator {
 
@@ -36,9 +63,11 @@ public class Perel_hw2Simulator {
 	static long mar, mbr, clock, IR, psr, pc, sp; // simulation of memory addresses
 	static long gpr[] = new long[8]; // simulation of general purpose registers, 0 to 7 (size 8)
 	
-	/* PCB is located in HYPO machine's OS dynamic memory area. 
+	/* PCB is an array located in HYPO machine's OS dynamic main memory area. 
 	PCB is a data structure used by OS to store all information about a process, 
 	information about process is updated during transition of process state (waiting to ready to running process states).
+	The OS returns a pointer to the dynamically allocated PCB memory when a request is made. The PCB memory is released 
+	when the process is terminated from the system. 
 	PCB is allocated from OS at process creation time. PCB size is 22, locations 0-21. */ 
 	
 	// below are PCB variables that hold there associated array index values 
@@ -80,6 +109,11 @@ public class Perel_hw2Simulator {
 	static long UserMode = 2; // variable to set system mode to User Mode, Mode 2 
 	static boolean shutdown = false; // flag used to indicate the HYPO Machine should shutdown
 	final static long DEFAULT_PRIORITY = 128; // set default priority to middle value in priority range
+	
+	/* As a process executes its program (instructions) will go through several states, a process in MTOPS can be 
+	1 of 3 states: ready state, running state, waiting state. When a process is selected by the OS to give CPU, 
+	it is given a fixed amount of time called time slice. Time slice is set to 200 milliseconds (ticks) */
+	
 	final static long READY_STATE = 1; // variable to indicate process ready state. State transition 1 of process scheduling. 
 	final static long WAITING_STATE = 2; // variable to indicate process waiting state. State transition 2 of process scheduling. 
 	final static long RUNNING_STATE = 3; // variable to indicate process running state. State transition 3 of process scheduling. 
@@ -276,7 +310,7 @@ public class Perel_hw2Simulator {
 
 		System.out.print("Hardware units successfully initialized!");
 
-		// create a null process 
+		// create a null process with lowest priority (0) to run when there is no other process in the ready queue 
 		String filename = "Perel-hw2MachineProgram1.txt";
 		createProcess(filename, 0);
 	}
@@ -298,7 +332,7 @@ public class Perel_hw2Simulator {
 	 *   error message and return error code.
 	 *
 	 * Input Parameters:
-	 *   @param String filename: String specifying the name of file of machine language program to load. File must exist in project working directory
+	 *   @param String filename: String specifying the name of file of machine language program to open and load. File must exist in project working directory
 	 *
 	 * Output Parameters:
 	 * 	 None
@@ -373,12 +407,14 @@ public class Perel_hw2Simulator {
 	 * Method Name: CPU
 	 *
 	 * Method Description:
-	 *   Method (executes program) performs fetch-decode-execute cycle for
+	 *   Method (executes the loaded program in main memory) performs fetch-decode-execute cycle for
 	 *   every given instruction. Simulates the CPU hardware of the OS.
 	 *   Performs all possible error checking such as invalid memory address
 	 *   reference, invalid mode, division by zero. After execution of
 	 *   every instruction, it increases the clock by the instruction execution
-	 *   time.
+	 *   time. Method executes 1 instruction at a time pointed by program counter.
+	 *   The process when it gets the CPU is given a fixed amount of CPU called time slice. 
+	 *   For every instruction executed, decrement the CPU time left by the instruction time.
 	 *
 	 * Input Parameters:
 	 *   None
@@ -793,7 +829,7 @@ public class Perel_hw2Simulator {
 					break;
 				}
 
-				case 12: { // system call instruction
+				case 12: { // system call instruction - system call requests OS services such as reading from keyboard, displaying to monitor, create/delete/suspend process, send message. The type of message depends on the system call identifier specified in the instruction
 					// check if PC value is in invalid range
 					if(pc <= 0 && pc >= 2499) {
 						System.out.println("Error invalid PC value encountered. Returning error code: " + ERROR_INVALID_PC_VALUE);
@@ -942,7 +978,7 @@ public class Perel_hw2Simulator {
 	 * Method Name: dumpMemory
 	 *
 	 * Method Description:
-	 *  Displays the content of the Hypo machine GPRs, the clock,
+	 *  Displays the content of the HYPO machine GPRs, the clock,
 	 *  content of given memory locations, and the given string
 	 *
 	 * Input Parameters:
@@ -1016,7 +1052,10 @@ public class Perel_hw2Simulator {
 	 * Method Description: Method creates the process for the program, 
 	 *  prepares the PCB block (object), initializes all PCB contents to 
 	 *  proper values, defines stack space for the program and dumps user 
-	 *  program area memory locations, loads program (process) from disk to memory  
+	 *  program area memory locations, loads program (process) from disk to memory.
+	 *  Every process created is assigned a stack area in RAM and a pointer in 
+	 *  SP by the OS. Stack size is predefined by OS. Programs have access to SP 
+	 *  through push and pop instructions only.    
 	 *
 	 * Input Parameters:
 	 *  filename: filename of machine file for which were creating a process
@@ -1175,6 +1214,8 @@ public class Perel_hw2Simulator {
 	 * 
 	 * Method Description: 
 	 *  Walk through the queue from the given pointer until the end of list
+	 *  and print the given queue passed in as argument, queue can be
+	 *  ready queue or waiting queue. 
 	 *
 	 * Input Parameters: 
 	 *  @param Qptr
@@ -1319,7 +1360,7 @@ public class Perel_hw2Simulator {
 	 *
 	 * Method Description: 
 	 *  Select first process from RQ to give CPU. When CPU has to be allocated to the next process in RQ, select the first process
-	 *  in the RQ and return the pointer to the PCB since processes in RQ are already ordered from highest to lowest priority
+	 *  in the RQ and return the pointer to the PCB since processes in RQ are already ordered from highest to lowest priority.
 	 *
 	 * Input Parameters: 
 	 *  None 
@@ -1391,7 +1432,10 @@ public class Perel_hw2Simulator {
 	 * Method Description: 
 	 *  Take PCBptr and store its context to all hardware components. 
 	 *  Copy CPU GPR register values from given PCBptr into the CPU registers.
-	 *  Do the opposite operation of save context. 
+	 *  Do the opposite operation of save context. The selected process has 
+	 *  been given the CPU to run, so that's why we must restore its CPU
+	 *  context from the PCB into the CPU registers.The OS code that performs 
+	 *  this restore context process is called the dispatcher.  
 	 *
 	 * Input Parameters:
 	 *  @param PCBptr: memory location of the PCB 
@@ -1428,7 +1472,8 @@ public class Perel_hw2Simulator {
 	 *  Method terminates a process by freeing the stack and PCB memory 
 	 *  so that another process can have space. Return stack memory 
 	 *  using stack start address and stack size in the given PCB.
-	 *  Return PCB memory using the PCBptr. 
+	 *  Return PCB memory using the PCBptr. Recover all resources 
+	 *  allocated to the process. 
 	 *  
 	 * Input Parameters:
 	 *  @param PCBptr: memory address location of PCB 
@@ -1717,7 +1762,12 @@ public class Perel_hw2Simulator {
 	 *
 	 * Method Description: 
 	 *  Read interrupt ID number. Based on the interrupt ID,
-	 *  service the interrupt type by calling appropriate method using switch
+	 *  service the interrupt type by calling appropriate method using switch.
+	 *  The occurrence of an event raises an interrupt in the system, in MTOPS 
+	 *  were dealing with software interrupts raised by system call. 
+	 *  When the interrupt occurs, the OS gets control. 
+	 *  Every time CPU scheduling is done the OS checks for an interrupt. 
+	 *  Only 1 interrupt can occur at a given time in MTOPS 
 	 * 
 	 * Input Parameters: 
 	 *  None
@@ -1776,7 +1826,7 @@ public class Perel_hw2Simulator {
 	 *
 	 * Method Description: 
 	 *  Run program interrupt service routine (ISR).
-	 *  Read filename and create process
+	 *  Read filename and create process. 
 	 *  
 	 * Input Parameters: 
 	 *  None 
@@ -1808,7 +1858,7 @@ public class Perel_hw2Simulator {
 	 * Method Description: 
 	 *  Method services a 'input completion' request.
 	 *  By reading a PID entered by user, method searches the WQ for the PCB that 
-	 *  is a matched. This is input character is stored in GPR1. 
+	 *  is a match. Then read 1 character from the keyboard and store input character in GPR1 in the PCB of the process. 
 	 *  
 	 * Input Parameters: 
 	 *  None 
@@ -1845,7 +1895,7 @@ public class Perel_hw2Simulator {
 	 * Method Description: 
 	 *  Method serves a 'input completion' request given by user. 
 	 *  It reads a PID entered by user, searches the WQ for the PCB that matches,
-	 *  and finally takes the input character and stores it in GPR1. 
+	 *  then displays 1 character from the GPR1 in PCB of the process. 
 	 *  
 	 * Input Parameters: 
 	 *  None 
