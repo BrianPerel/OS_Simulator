@@ -26,6 +26,8 @@ import java.util.Scanner;
  *  	-simulation of a 2-address machine with a stack, event simulation,
  *  	-assembly language programming and hand assembly to machine language program,
  *  	-and an absolute loader.
+ *  
+ *  MTOPS is an interrupt (event) driven time sharing multitasking (multiprocessing) operating system. 
  *
  *  User programs to test the hardware and operating system are written in assembly language first and then hand assembled
  *  into machine language using a symbol table that contains 2 columns for every row: column1 = name of label appearing 
