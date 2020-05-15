@@ -95,11 +95,7 @@ public class Perel_hw2Simulator {
 	static int SPIndex = 19;
 	static int PCIndex = 20;
 	static int PSRIndex = 21;
-
-	final static long PROGRAM_HALTED = 1; // halt instruction code
-	final static long OK = 0; // status code for successful execution
-	final static long END_OF_PROGRAM = -1; // variable to indicate that end of machine program has been reached
-
+	
 	final static long END_OF_LIST = -1; // variable to indicate that end of OS or User Free List has been encountered
 	static long RQ = END_OF_LIST; // ready queue is set to end of list, ready queue is the list where processes that are ready to run are held 
 	static long WQ = END_OF_LIST; // waiting queue is set to end of list, waiting queue is the list where processes that are waiting to be run are held 
@@ -110,12 +106,12 @@ public class Perel_hw2Simulator {
 	static long OSMode = 1; // variable to set system mode to OS Mode, Mode 1 
 	static long UserMode = 2; // variable to set system mode to User Mode, Mode 2 
 	static boolean shutdown = false; // flag used to indicate the HYPO Machine should shutdown
-	final static long DEFAULT_PRIORITY = 128; // set default priority to middle value in priority range
 	
 	/* As a process executes its program (instructions) will go through several states, a process in MTOPS can be 
 	1 of 3 states: ready state, running state, waiting state. When a process is selected by the OS to give CPU, 
 	it is given a fixed amount of time called time slice. Time slice is set to 200 milliseconds (ticks) */
 	
+	final static long DEFAULT_PRIORITY = 128; // set default priority to middle value in priority range
 	final static long READY_STATE = 1; // variable to indicate process ready state. State transition 1 of process scheduling. 
 	final static long WAITING_STATE = 2; // variable to indicate process waiting state. State transition 2 of process scheduling. 
 	final static long RUNNING_STATE = 3; // variable to indicate process running state. State transition 3 of process scheduling. 
@@ -134,6 +130,9 @@ public class Perel_hw2Simulator {
 	final static long PCB_SIZE = 22; // variable holds value which is number of indexes in PCB array (size) 
 	
 	/* HYPO machine error codes, error codes are less than 0, check for errors at every step of OS execution */
+	final static long PROGRAM_HALTED = 1; // halt instruction code
+	final static long OK = 0; // status code for successful execution
+	final static long END_OF_PROGRAM = -1; // variable to indicate that end of machine program has been reached
 	final static long RUN_TIME_ERROR = -2; // error code to indicate run time error was encountered 
 	final static long ERROR_FILE_OPEN = -3; // error code to indicate file could not be opened
 	final static long ERROR_INVALID_ADDRESS = -4; // error code to indicate invalid address was given
@@ -151,7 +150,8 @@ public class Perel_hw2Simulator {
 	final static long ERROR_NO_AVAILABLE_MEMORY = -16; // error code to indicate no available memory left
 	final static long ERROR_REQUESTED_MEMORY_TOO_SMALL = -17; // error code to indicate requested (input) memory is too small
 	final static long ERROR_FILE_NOT_FOUND = -18; // error code that file was not found error encountered 
-
+	final static long SHUTDOWN_STATUS = 2; // system shutdown status value 
+	
 	static Scanner scan = new Scanner(System.in); // console input object instance
 
 
@@ -195,7 +195,7 @@ public class Perel_hw2Simulator {
 		while(!shutdown) {
 			long status = checkAndProcessInterrupt(); // check and process interrupt			
 
-			if(status == 2) break; // if interrupt is shutdown, terminate program
+			if(status == SHUTDOWN_STATUS) break; // if interrupt is shutdown, terminate program
 
 			System.out.println("\nRQ: Before CPU scheduling"); // dump the contents of RQ
 			printQueue(RQ);
@@ -207,6 +207,10 @@ public class Perel_hw2Simulator {
 
 			// select next process from RQ to give CPU
 			long PCBrunningptr = selectProcessFromRQ(); // select a process from ready queue
+			
+			if(PCBrunningptr < 0) {
+				System.out.println("\nInvalid PCB pointer value error detected");
+			}
 
 			// perform restore context using dispatcher
 			dispatcher(PCBrunningptr);
@@ -237,12 +241,14 @@ public class Perel_hw2Simulator {
 			}
 			else if(status == io_getcSystemCall()) {
 				System.out.println("\nInput Interrupt detected");
+				saveContext(PCBrunningptr);
 				hypoMainMemory[(int) (PCBrunningptr + reasonForWaitingCodeIndex)] = io_putcSystemCall(); //Set reason for waiting in the running PCB to Output Completion Event
 				insertIntoWQ(PCBrunningptr); // insert running process into WQ.
 				PCBrunningptr = END_OF_LIST; // set running PCB pointer to end of list
 			}
 			else if(status == io_putcSystemCall()) {
 				System.out.println("\nOutput interrupt detected");
+				saveContext(PCBrunningptr);
 				hypoMainMemory[(int) (PCBrunningptr + reasonForWaitingCodeIndex)] = io_putcSystemCall(); //Set reason for waiting in the running PCB to Output Completion Event
 				insertIntoWQ(PCBrunningptr); // insert running process into WQ.
 				PCBrunningptr = END_OF_LIST; // set running PCB pointer to end of list
@@ -253,6 +259,7 @@ public class Perel_hw2Simulator {
 		}
 
 		System.out.println("OS is shutting down...\nReturning code: " + OK + "\nGoodbye");
+		return;
 	}
 
 
@@ -313,7 +320,7 @@ public class Perel_hw2Simulator {
 		System.out.print("Hardware units successfully initialized!");
 
 		// create a null process with lowest priority (0) to run when there is no other process in the ready queue 
-		String filename = "Perel-hw2MachineProgram1.txt";
+		String filename = "p1.txt";
 		createProcess(filename, 0);
 	}
 
